@@ -28,7 +28,8 @@ const START_INK = 25;          // how much colour the print already has when pla
 
 // the print colours in as ink goes up: [colour on bare paper, final colour, ink where it starts, ink where it is done]
 const LAYERS = {
-  sky: [PAPER, '#f2e2b4', 14, 34],
+  sky: [PAPER, '#e7d1a0', 14, 34],              // the top of the sky: the print's warm buff...
+  skyLow: [PAPER, '#f1eadb', 14, 34],           // ...fading to a paler, cooler cream toward the horizon (Tom: like the print, minus its dark band)
   cloud: [PAPER, '#b9c6c8', 20, 40],
   fuji: ['#e4dcc2', '#6f8fb5', 28, 48],
   farSea: ['#dfe3d6', '#4f7fb2', 6, 30],
@@ -73,7 +74,10 @@ export function createArt(canvas) {
 
   // ---------- sky, clouds, mountain ----------
   function drawSky(ink, t) {
-    ctx.fillStyle = layerColor('sky', ink); ctx.fillRect(0, 0, W, HORIZON + 4);
+    const top = layerColor('sky', ink), low = layerColor('skyLow', ink);
+    const g = ctx.createLinearGradient(0, 0, 0, HORIZON);
+    g.addColorStop(0, top); g.addColorStop(0.3, top); g.addColorStop(1, low);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, HORIZON + 4);
     // long flat cloud bands drifting slowly (like the print's yellowed sky)
     const cc = layerColor('cloud', ink);
     // nearer (lower) clouds slide past faster than the high ones
