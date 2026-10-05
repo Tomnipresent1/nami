@@ -4,7 +4,7 @@ import { VH } from './ocean.js';
 
 export const PRINTS = [
   { id: 'wave', title: 'THE GREAT WAVE', artist: 'HOKUSAI', ready: true },
-  { id: 'shower', title: 'SUDDEN SHOWER', artist: 'HIROSHIGE', ready: false },
+  { id: 'shower', title: 'SUDDEN SHOWER', artist: 'HIROSHIGE', ready: true },
 ];
 
 const PAPER = '#efe4c6', INK = '#16213b', SEAL = '#b3342b', MUTED = '#4a5470';
@@ -55,7 +55,6 @@ export function drawAlbum(ctx, o) {
     ctx.save(); ctx.beginPath(); ctx.rect(c.x, c.y, c.w, c.h); ctx.clip();
     const th = o.thumbs && o.thumbs[p.id];
     if (th) ctx.drawImage(th, c.x, c.y, c.w, c.h);
-    else if (p.id === 'shower') drawShowerSketch(ctx, c, time);
     ctx.restore();
     ctx.strokeStyle = INK; ctx.globalAlpha = o.sel === i ? 0.9 : 0.45; ctx.lineWidth = o.sel === i ? 3 : 1.5;
     ctx.strokeRect(c.x - 7, c.y - 7, c.w + 14, c.h + 14); ctx.globalAlpha = 1;
@@ -77,42 +76,4 @@ function seal(ctx, x, y, s) {
   ctx.fillStyle = SEAL; ctx.fillRect(-26, -26, 52, 52);
   ctx.strokeStyle = PAPER; ctx.lineWidth = 3; ctx.strokeRect(-20, -20, 40, 40);
   ctx.restore();
-}
-
-// A placeholder for the print still to come: Hiroshige's bridge in the rain, washed out like an unfinished proof.
-function drawShowerSketch(ctx, c, time) {
-  const X = (u) => c.x + u * c.w, Y = (v) => c.y + v * c.h;
-  const sky = ctx.createLinearGradient(0, Y(0), 0, Y(0.42));
-  sky.addColorStop(0, '#202227'); sky.addColorStop(1, '#7d8286');
-  ctx.fillStyle = sky; ctx.fillRect(c.x, c.y, c.w, c.h);
-  // the far shore, low and misty
-  ctx.fillStyle = '#56656a'; ctx.beginPath(); ctx.moveTo(X(0), Y(0.5));
-  for (let u = 0; u <= 1.001; u += 0.05) ctx.lineTo(X(u), Y(0.4 + 0.025 * Math.sin(u * 23) + 0.015 * Math.sin(u * 51)));
-  ctx.lineTo(X(1), Y(0.5)); ctx.closePath(); ctx.fill();
-  // the river
-  const river = ctx.createLinearGradient(0, Y(0.48), 0, Y(1));
-  river.addColorStop(0, '#b4cdbf'); river.addColorStop(1, '#3f6f86');
-  ctx.fillStyle = river; ctx.fillRect(c.x, Y(0.48), c.w, c.h * 0.52);
-  // the raft, drifting
-  const rx = ((0.08 + time * 0.01) % 1.1) - 0.05;
-  ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(X(rx), Y(0.57)); ctx.lineTo(X(rx + 0.2), Y(0.585)); ctx.stroke();
-  // the bridge: a deck rising from lower left to the right, on dark legs
-  ctx.strokeStyle = '#3b3631'; ctx.lineWidth = 2.5;
-  for (let u = 0.06; u < 1; u += 0.09) { const v = 0.86 - u * 0.3; ctx.beginPath(); ctx.moveTo(X(u), Y(v)); ctx.lineTo(X(u - 0.02), Y(1.02)); ctx.stroke(); }
-  ctx.fillStyle = '#d9c497'; ctx.beginPath();
-  ctx.moveTo(X(-0.02), Y(0.84)); ctx.lineTo(X(1.02), Y(0.55)); ctx.lineTo(X(1.02), Y(0.6)); ctx.lineTo(X(-0.02), Y(0.95)); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = '#6b5a3c'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(X(-0.02), Y(0.78)); ctx.lineTo(X(1.02), Y(0.5)); ctx.stroke();
-  // rain: two sets of fine lines at slightly different angles, falling
-  ctx.strokeStyle = '#1b1d22'; ctx.lineWidth = 0.8; ctx.globalAlpha = 0.35;
-  const fall = (time * 0.6) % 1;
-  for (let k = 0; k < 2; k++) {
-    const lean = k ? 0.05 : 0.09;
-    for (let i = 0; i < 46; i++) {
-      const u = ((i * 0.618 + k * 0.31) % 1) * 1.1 - 0.05, v = (((i * 0.37 + fall + k * 0.5) % 1) * 1.2) - 0.2;
-      ctx.beginPath(); ctx.moveTo(X(u), Y(v)); ctx.lineTo(X(u - lean * 0.4), Y(v + 0.3)); ctx.stroke();
-    }
-  }
-  ctx.globalAlpha = 1;
-  // washed out: not carved yet
-  ctx.fillStyle = PAPER; ctx.globalAlpha = 0.45; ctx.fillRect(c.x, c.y, c.w, c.h); ctx.globalAlpha = 1;
 }

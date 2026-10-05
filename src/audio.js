@@ -1,6 +1,6 @@
 // NAMI's sound, all made live with WebAudio (no files): a breathing sea, plucked koto-like notes in a Japanese scale that
 // answer your own rocking, a low swell that builds before a wave breaks, and a soft crash when it lands.
-let ac = null, master = null, bed = null, drone = null, muted = false, lastPluck = 0;
+let ac = null, master = null, bed = null, drone = null, rainBed = null, muted = false, lastPluck = 0;
 
 // a Japanese "hirajoshi"-style five-note scale (D E F A Bb), two octaves
 const SCALE = [293.66, 329.63, 349.23, 440, 466.16, 587.33, 659.25, 698.46, 880, 932.33];
@@ -29,6 +29,16 @@ export function unlock() {
   o1.type = 'sine'; o2.type = 'sine'; o1.frequency.value = 73.42; o2.frequency.value = 110.0; dg.gain.value = 0.018;
   o1.connect(dg); o2.connect(dg); dg.connect(master); o1.start(); o2.start();
   drone = { g: dg };
+
+  // rain (Sudden Shower): bright hiss plus a softer patter body, silent until rain() turns it up
+  const rb = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate), rd = rb.getChannelData(0);
+  for (let i = 0; i < rd.length; i++) rd[i] = (Math.random() * 2 - 1) * (Math.random() < 0.004 ? 2.5 : 1);   // the odd louder drop
+  const rs = ac.createBufferSource(); rs.buffer = rb; rs.loop = true;
+  const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 700;
+  const rlp = ac.createBiquadFilter(); rlp.type = 'lowpass'; rlp.frequency.value = 5000;
+  const rg = ac.createGain(); rg.gain.value = 0;
+  rs.connect(hp); hp.connect(rlp); rlp.connect(rg); rg.connect(master); rs.start();
+  rainBed = { g: rg, lp: rlp };
 }
 
 function pluck(freq, vol = 0.18, delay = 0, len = 1.6) {
@@ -69,6 +79,36 @@ export function ambience(level, calm) {
   bed.lp.frequency.setTargetAtTime(380 + level * 700 + calm * 120, t, 0.4);
   drone.g.gain.setTargetAtTime(0.012 + calm * 0.012, t, 0.8);
 }
+
+/** Call every frame: how hard it is raining (0 = no rain sound at all). */
+export function rain(level) {
+  if (!ac) return;
+  const t = ac.currentTime;
+  rainBed.g.gain.setTargetAtTime(level * 0.11, t, 0.6);
+  rainBed.lp.frequency.setTargetAtTime(2600 + level * 3600, t, 0.6);
+}
+// a soft knock: a footstep on wet wooden planks
+function knock(freq, vol) {
+  if (!ac) return;
+  const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
+  o.type = 'sine'; o.frequency.setValueAtTime(freq * 1.4, t); o.frequency.exponentialRampToValueAtTime(freq, t + 0.03);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0005, t + 0.12);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.15);
+  noise(0.06, vol * 0.4, 1800, 500);
+}
+
+/** Sudden Shower's sounds. */
+export const bridgeSfx = {
+  step() { knock(130 + Math.random() * 25, 0.05); },
+  splash() { noise(0.45, 0.08, 4200, 900); },
+  bump() { pluck(196, 0.08, 0, 1.6); pluck(146.83, 0.07, 0.25, 2.0); },           // a polite little bow, two low notes
+  pass() { if (!ac) return; const now = ac.currentTime; if (now - lastPluck < 0.8) return; lastPluck = now; pluck(SCALE[Math.floor(Math.random() * 7)], 0.06, 0, 1.8); },
+  crossed() { [0, 2, 4, 6, 8].forEach((i, k) => pluck(SCALE[i], 0.12, k * 0.13, 2.2)); },
+  ink(level) { sfx.ink(level); },
+  complete() { sfx.complete(); },
+  start() { sfx.start(); },
+  blip() { sfx.blip(); },
+};
 
 export const sfx = {
   crest(strength = 0.5) {

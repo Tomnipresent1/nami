@@ -3,7 +3,9 @@
 // tilt test) the finger slide works instead: slide left/right anywhere on the screen.
 import { wheelAngle, upFromOrientation, steerFromAngle, TILT_FULL_LOCK } from './tilt.js';
 
-export const input = { steer: 0, keys: [], start: false, touch: false };
+// held/py: is a finger (or mouse button) down, and where it is on the screen (client y): Sudden Shower walks you toward it.
+// vert: up/down keys (+1 = up).
+export const input = { steer: 0, vert: 0, keys: [], start: false, touch: false, held: false, py: 0 };
 export const tilt = { ok: false, angle: 0, smooth: 0, neutral: 0, steer: 0, on: false, flip: false, source: '', events: 0, empty: 0,
   secure: typeof isSecureContext === 'boolean' ? isSecureContext : true, fullLock: TILT_FULL_LOCK };
 
@@ -56,11 +58,11 @@ export function setupInput({ onPause, canvas, onTap } = {}) {
   canvas.addEventListener('pointerdown', (e) => {
     pressed = true; onTap && onTap(e);
     if (id !== null) return;
-    id = e.pointerId; ox = e.clientX; moved = 0; slide = 0;
+    id = e.pointerId; ox = e.clientX; moved = 0; slide = 0; input.held = true; input.py = e.clientY;
     try { canvas.setPointerCapture(e.pointerId); } catch {}
   });
-  canvas.addEventListener('pointermove', (e) => { if (e.pointerId !== id) return; const dx = e.clientX - ox; moved = Math.max(moved, Math.abs(dx)); slide = clamp(dx / RANGE, -1, 1); });
-  const up = (e) => { if (e.pointerId === id) { id = null; slide = 0; } };
+  canvas.addEventListener('pointermove', (e) => { if (e.pointerId !== id) return; const dx = e.clientX - ox; moved = Math.max(moved, Math.abs(dx)); slide = clamp(dx / RANGE, -1, 1); input.py = e.clientY; });
+  const up = (e) => { if (e.pointerId === id) { id = null; slide = 0; input.held = false; } };
   canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
 }
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
@@ -77,6 +79,7 @@ export function pollInput() {
     steer = Math.abs(tilt.steer) > 0 ? tilt.steer : kb;
   } else if (Math.abs(slide) > 0.02) steer = slide;
   input.steer = steer;
+  input.vert = (down(['ArrowUp', 'KeyW']) ? 1 : 0) - (down(['ArrowDown', 'KeyS']) ? 1 : 0);
   input.keys = menuKeys.splice(0);
   input.start = pressed; pressed = false;
   return input;
