@@ -19,8 +19,9 @@ export const figScale = (s, d) => (1 - 0.32 * s) * (1 - 0.1 * d);
 
 export const BTUNE = {
   crossSecs: 80,            // one crossing at a steady walk
-  acrossSpeed: 1.0,         // deck widths per second, at most
-  follow: 6,                // how keenly you head for your finger
+  acrossSpeed: 0.8,         // deck widths per second, at most (gentle)
+  follow: 5,                // how keenly you follow your finger
+  dragGain: 1.4,            // finger travel -> steps across: 1.4 = a slide a bit shorter than the deck crosses all of it
   crowdSpeed: [0.0122, 0.0128],   // nearly one pace for everyone, so nobody catches anyone up and closes a gap
   spawnGap: [3.2, 5.6],     // seconds between people setting out from the far end
   bodyS: 0.016,             // how close (along) counts as bumping (Tom: tightened, it felt wide)
@@ -65,6 +66,7 @@ export class Bridge {
     this.t = 0; this.tick = 0;
     this.player = { s: 0.05, d: 0.5, vd: 0, stopT: 0, slowT: 0, invuln: 0, step: 0, puddle: -1, enterT: 1, bow: 0 };
     this.walkers = []; this.nextId = 0;
+    this.drag = null;              // where the finger went down, and where you were then
     this.nextSpawn = 1;
     this.puddles = [];
     for (let i = 0; i < BTUNE.puddles; i++) this.puddles.push(this.newPuddle(0.12, 0.5 + this.rand() * 0.5));
@@ -120,7 +122,7 @@ export class Bridge {
   }
 
   // ---------- one step ----------
-  /** inp: { across -1..1 (tilt/keys: + = toward the far rail), fingerY (picture units, or null), keys, taps, start } */
+  /** inp: { across -1..1 (tilt/keys: + = toward the far rail), fingerY (picture units, or null), touchId (changes with each new touch), keys, taps, start } */
   update(dt, inp = {}) {
     this.tick++;
     const keys = inp.keys || [], taps = inp.taps || [];
@@ -161,9 +163,20 @@ export class Bridge {
         p.step += dt * 1.9;
         if (Math.floor(p.step) !== Math.floor(p.step - dt * 1.9) && scoring) this.say('step');
       }
+      // the finger is a trackpad: putting it down does nothing; sliding it up or down moves you that far from where you already are
+      // (Tom: heading for the finger's spot made you jump whenever a thumb landed low on the screen)
       let want;
-      if (inp.fingerY != null) want = clamp((clamp(deckD(p.s, inp.fingerY, this.W), 0, 1) - p.d) * T.follow, -1, 1) * T.acrossSpeed;
-      else want = clamp(inp.across || 0, -1, 1) * T.acrossSpeed;
+      if (inp.fingerY != null) {
+        const perD = 0.8 * deckDepth(p.s * this.W, this.W) / T.dragGain;     // picture units of finger travel per deck width
+        if (!this.drag || this.drag.id !== inp.touchId) this.drag = { y: inp.fingerY, d: p.d, id: inp.touchId };   // a new touch starts afresh
+        let target = this.drag.d + (this.drag.y - inp.fingerY) / perD;
+        // at a rail, move the anchor along with the finger, so sliding back responds at once
+        if (target > 1 || target < 0) { const edge = target > 1 ? 1 : 0; this.drag.y += (target - edge) * perD; target = edge; }
+        want = clamp((target - p.d) * T.follow, -1, 1) * T.acrossSpeed;
+      } else {
+        this.drag = null;
+        want = clamp(inp.across || 0, -1, 1) * T.acrossSpeed;
+      }
       if (p.stopT > 0) want = 0;
       p.vd += (want - p.vd) * Math.min(1, dt * 10);
       p.d = clamp(p.d + p.vd * dt, 0, 1);

@@ -159,6 +159,7 @@ function frame(now) {
       const tiltOn = s.tiltSteer && tilt.ok;
       inp.across = tiltOn ? inp.steer : inp.vert;
       inp.fingerY = !tiltOn && input.held ? pictureY(input.py) : null;
+      inp.touchId = input.touches;
     }
     s.update(STEP, inp);
     playEvents(cur);

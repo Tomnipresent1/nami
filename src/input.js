@@ -5,7 +5,8 @@ import { wheelAngle, upFromOrientation, steerFromAngle, TILT_FULL_LOCK } from '.
 
 // held/py: is a finger (or mouse button) down, and where it is on the screen (client y): Sudden Shower walks you toward it.
 // vert: up/down keys (+1 = up).
-export const input = { steer: 0, vert: 0, keys: [], start: false, touch: false, held: false, py: 0 };
+// touches: counts every new finger-down, so even a lift-and-touch quicker than one frame is seen as a new touch.
+export const input = { steer: 0, vert: 0, keys: [], start: false, touch: false, held: false, py: 0, touches: 0 };
 export const tilt = { ok: false, angle: 0, smooth: 0, neutral: 0, steer: 0, on: false, flip: false, source: '', events: 0, empty: 0,
   secure: typeof isSecureContext === 'boolean' ? isSecureContext : true, fullLock: TILT_FULL_LOCK };
 
@@ -58,7 +59,7 @@ export function setupInput({ onPause, canvas, onTap } = {}) {
   canvas.addEventListener('pointerdown', (e) => {
     pressed = true; onTap && onTap(e);
     if (id !== null) return;
-    id = e.pointerId; ox = e.clientX; moved = 0; slide = 0; input.held = true; input.py = e.clientY;
+    id = e.pointerId; ox = e.clientX; moved = 0; slide = 0; input.held = true; input.py = e.clientY; input.touches++;
     try { canvas.setPointerCapture(e.pointerId); } catch {}
   });
   canvas.addEventListener('pointermove', (e) => { if (e.pointerId !== id) return; const dx = e.clientX - ox; moved = Math.max(moved, Math.abs(dx)); slide = clamp(dx / RANGE, -1, 1); input.py = e.clientY; });
