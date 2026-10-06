@@ -12,8 +12,8 @@ import { BUILD } from './version.js';
 // F = zoom (bigger = a longer lens: flatter, more layered, closer to the prints' "cheated" near-orthographic look). back = how far behind
 // you the camera floats; F / back sets your size (kept the same as v24). horizon = how far down the screen the horizon sits.
 // (v24: F 440, back 7, horizon 250, height 3: felt wide and sparse; Tom wants intimate and enclosed. v25: F 900, back 14.
-//  v26: flatter again, Tom: "we will flatten it a little bit more")
-const CAM = { F: 1250, horizon: 290, height: 2.8, back: 19.5, follow: 0.7, ease: 2 };
+//  v26: flatter again, F 1250. v27: everything 30% bigger (Tom): F 1625, camera a little lower so you stay on screen)
+const CAM = { F: 1625, horizon: 290, height: 2.35, back: 19.5, follow: 0.7, ease: 2 };
 const START_INK = 25;
 const LAYERS = {
   skyTop: ['#efd9c4', '#d4604f', 8, 40],      // deep rose at the top...
@@ -128,16 +128,22 @@ export function createGardenArt(canvas) {
     trees = Array.from({ length: TREE_KINDS }, (_, i) => makeTree(i));
     huts = { single: makeHut(false), double: makeHut(true) };
     // the far orchard along the horizon: rows of little blossoming trees, misty
-    farBand = document.createElement('canvas'); farBand.width = 1600; farBand.height = 110;
+    // the far orchard: a dense thicket of little trees, rows behind rows, whose trunks come down past the horizon line, so the
+    // place where ground meets sky is always hidden behind something, as in the print (Tom: keep the horizon hidden)
+    farBand = document.createElement('canvas'); farBand.width = 1600; farBand.height = 200;
     const x = farBand.getContext('2d'), r = rng(0.77);
-    for (let row = 0; row < 3; row++) for (let i = 0; i < 70; i++) {
-      const tx = r() * 1600, h = 30 + r() * 40 - row * 8, base = 108 - row * 6;
-      x.strokeStyle = `rgba(70,56,60,${0.35 + row * 0.15})`; x.lineWidth = 1.4;
-      x.beginPath(); x.moveTo(tx, base); x.lineTo(tx, base - h * 0.5);
-      for (let k = 0; k < 5; k++) { const a = -Math.PI / 2 + (r() - 0.5) * 1.6; x.moveTo(tx, base - h * 0.45); x.lineTo(tx + Math.cos(a) * h * 0.5, base - h * 0.45 + Math.sin(a) * h * 0.5); }
+    for (let row = 0; row < 5; row++) for (let i = 0; i < 130; i++) {
+      const tx = r() * 1600, h = 70 + r() * 70 - row * 9, base = 196 - row * 9;
+      const a0 = 0.22 + row * 0.13;
+      // a soft haze of blossom first, then the dark branches through it
+      x.fillStyle = `rgba(246,232,226,${0.18 + row * 0.06})`;
+      for (let k = 0; k < 4; k++) { x.beginPath(); x.arc(tx + (r() - 0.5) * h * 0.7, base - h * (0.55 + r() * 0.35), h * (0.12 + r() * 0.1), 0, Math.PI * 2); x.fill(); }
+      x.strokeStyle = `rgba(70,56,60,${a0})`; x.lineWidth = 1.2 + row * 0.35;
+      x.beginPath(); x.moveTo(tx, base); x.lineTo(tx + (r() - 0.5) * 6, base - h * 0.5);
+      for (let k = 0; k < 6; k++) { const a = -Math.PI / 2 + (r() - 0.5) * 1.7; x.moveTo(tx, base - h * 0.45); x.lineTo(tx + Math.cos(a) * h * 0.55, base - h * 0.45 + Math.sin(a) * h * 0.55); }
       x.stroke();
-      x.fillStyle = `rgba(250,244,236,${0.5 + row * 0.15})`;
-      for (let k = 0; k < 6; k++) { x.beginPath(); x.arc(tx + (r() - 0.5) * h * 0.8, base - h * (0.4 + r() * 0.55), 1.6, 0, Math.PI * 2); x.fill(); }
+      x.fillStyle = `rgba(252,246,238,${0.45 + row * 0.1})`;
+      for (let k = 0; k < 8; k++) { x.beginPath(); x.arc(tx + (r() - 0.5) * h * 0.9, base - h * (0.4 + r() * 0.6), 1.7, 0, Math.PI * 2); x.fill(); }
     }
     // tufts of grass dotted about the garden
     const g = rng(0.31); grass = [];
@@ -167,9 +173,13 @@ export function createGardenArt(canvas) {
   function drawFarBand(ink) {
     ctx.save(); ctx.globalAlpha = clamp((ink - 10) / 40, 0.25, 1);
     const off = ((-cam.x * 6) % 1600 + 1600) % 1600;
-    for (let x = -off; x < W; x += 1600) ctx.drawImage(farBand, x, CAM.horizon - 104, 1600, 110);
+    for (let x = -off; x < W; x += 1600) ctx.drawImage(farBand, x, CAM.horizon - 178, 1600, 200);     // its foot sits below the horizon line
     ctx.restore();
-    ctx.fillStyle = C('farTrees', ink); ctx.globalAlpha = 0.25; ctx.fillRect(0, CAM.horizon - 6, W, 8); ctx.globalAlpha = 1;
+    // and a soft peach haze where sky meets ground, so there is never a hard line (Hiroshige's bokashi)
+    const g = ctx.createLinearGradient(0, CAM.horizon - 70, 0, CAM.horizon + 40);
+    const mist = C('skyLow', ink);
+    g.addColorStop(0, mist + '00'); g.addColorStop(0.55, mist + 'b3'); g.addColorStop(0.75, mist + '99'); g.addColorStop(1, mist + '00');
+    ctx.fillStyle = g; ctx.fillRect(0, CAM.horizon - 70, W, 110);
   }
   function drawGround(ink) {
     const g = ctx.createLinearGradient(0, CAM.horizon, 0, VH);
@@ -271,11 +281,11 @@ export function createGardenArt(canvas) {
     const bow = o.bow || 0;
     ctx.fillStyle = o.robe; ctx.beginPath(); ctx.moveTo(-0.24, 0); ctx.lineTo(0.24, 0); ctx.lineTo(0.2, -0.75); ctx.lineTo(-0.2, -0.75); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = INK; ctx.lineWidth = 0.025; ctx.stroke();
-    ctx.save(); ctx.translate(0, -0.75); ctx.scale(1, 1 - 0.35 * bow); ctx.translate(0, 0.12 * bow);
+    ctx.save(); ctx.translate(0, -0.75); ctx.rotate((o.idle || 0) * 0.035); ctx.scale(1, 1 - 0.35 * bow); ctx.translate(0, 0.12 * bow);   // (idle: shifting weight)
     ctx.fillStyle = o.robe; ctx.beginPath(); ctx.moveTo(-0.2, 0); ctx.lineTo(0.2, 0); ctx.lineTo(0.17, -0.55); ctx.lineTo(-0.17, -0.55); ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.fillStyle = o.obi; ctx.fillRect(-0.2, -0.22, 0.4, 0.13);
     const look = o.look || 0;                                                                     // seen from behind: -1 left .. 1 right
-    ctx.fillStyle = o.front ? SKIN : HAIR; ctx.beginPath(); ctx.arc(0, -0.68, 0.12, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = o.front ? SKIN : HAIR; ctx.beginPath(); ctx.arc(o.front ? look * 0.035 : 0, -0.68, 0.12, 0, Math.PI * 2); ctx.fill();   // (facing you: the face turns)
     if (!o.front && Math.abs(look) > 0.05) {
       // turning the head: a sliver of cheek and ear shows on the side you look toward, and the bun swings the other way
       ctx.fillStyle = SKIN; ctx.beginPath(); ctx.ellipse(look * 0.085, -0.665, 0.055 * Math.abs(look), 0.095, 0, 0, Math.PI * 2); ctx.fill();
@@ -353,8 +363,8 @@ export function createGardenArt(canvas) {
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
     { const q = project(p.x, 0, p.z); youX = showYou && q ? q[0] : W / 2; }
     drawSky(ink);
-    drawFarBand(ink);
     drawGround(ink);
+    drawFarBand(ink);                                  // after the ground, so the far trees stand over the horizon line
     drawShadows(sim, ink);
 
     // everything standing in the garden, far to near
@@ -372,8 +382,8 @@ export function createGardenArt(canvas) {
       else if (kind === 'hut') drawHut(o, q);
       else if (kind === 'fence') drawFence(o, q);
       else if (kind === 'kago') drawKago(q, sim.wind, time);
-      else if (kind === 'person') drawPerson(q, { robe: KIMONO[o.look % KIMONO.length], obi: OBI[o.look % OBI.length], front: o.kind === 'walk' || o.look % 2 === 0,
-        step: o.kind === 'walk' && o.bowT <= 0 ? time * 0.9 + o.phase : 0, bow: o.bowT > 0 ? Math.sin((o.bowT / 1.4) * Math.PI) : 0 });
+      else if (kind === 'person') drawPerson(q, { robe: KIMONO[o.dress % KIMONO.length], obi: OBI[(o.dress >> 2) % OBI.length], front: o.face,
+        step: o.step, bow: o.bowT > 0 ? Math.sin((o.bowT / 1.4) * Math.PI) : 0, look: o.head, idle: Math.sin(time * 0.7 + o.phase) });
       else drawPerson(q, { robe: YOU, obi: '#e8d9b0', front: false, step: o.step, bow: o.bow, alpha: o.fade, look: o.look });
     }
 

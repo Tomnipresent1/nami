@@ -18,8 +18,9 @@ export const GTUNE = {
   ease: 1.6,               // how gently you start and stop walking
   bodyR: 0.45,             // your size, for stepping round things
   nudge: 0.9,              // walking straight into something slides you gently round it (units per second sideways)
-  bowNear: 1.9,            // pass this close to someone and you both bow
+  bowNear: 1.8,            // pass this close to someone and you both bow
   bowSecs: 1.4,
+  bowGap: 9,               // at least this long between bows (so a busy garden doesn't keep stopping you)
   inkPerUnit: 0.2,         // ink for each unit walked (one stroll ~ 40)
   inkBow: 1.5,
   aimLead: 0.25,           // how far ahead of you the finger can get (small = reversing answers at once)
@@ -58,8 +59,16 @@ export function buildGarden() {
     && !(x > POND.x0 - 1 && x < POND.x1 + 1 && z > POND.z0 - 1 && z < POND.z1 + 1);
   const tree = (x, z, extra = {}) => ({ x, z, r: 0.6, kind: Math.floor(r() * TREE_KINDS), seed: r() * 100,
     size: 0.82 + r() * 0.42, flip: r() < 0.5, ...extra });       // every tree a little different: size, mirrored or not
+  // you start enclosed on both sides (Tom: there was open space to the left at the start): the kago on the right, and on the left
+  // a big trunk cropped by the screen's edge, like the print's left-hand tree, with more close behind it
+  for (const [dx, z] of [[-4.4, -9], [-6.6, -3], [-7.2, 4], [-9.5, 9], [6.8, 2], [8.5, 8]]) trees.push(tree(pathX(z) + dx, z, { edge: true }));
   // the garden starts well behind where you begin, so you start in the middle of it, not walking up to it (Tom)
   for (let z = -45; z < 330; z += 2 + r() * 3.5) {
+    // beyond the end of the stroll the orchard closes across the path, so the avenue never opens onto a bare horizon (Tom)
+    if (z > PATH_END + 10) for (let k = 0; k < 3; k++) {
+      const x = pathX(z) + (r() - 0.5) * 2 * (HALF + 6);
+      if (trees.every((t) => Math.hypot(t.x - x, t.z - z) > 3)) trees.push(tree(x, z));
+    }
     // now and then a tree on or right beside the path: something to step around
     if (z > 14 && z < PATH_END - 4 && r() < 0.22) {
       const x = pathX(z) + (r() - 0.5) * 7;
@@ -67,10 +76,11 @@ export function buildGarden() {
     }
     // the orchard either side: irregular, no rows (Tom: they looked like a line). Most trees crowd in fairly close, some stand
     // right by the path (their trunks sweep past the screen's edges, cropped, like the print's big foreground tree), a few far back
-    for (const side of [-1, 1, -1, 1]) {
+    for (const side of [-1, 1, -1, 1, -1, 1]) {
       if (r() < 0.2) continue;
       const u = r();
-      const off = u < 0.18 ? HALF + 0.7 + r() * 1.5 : u < 0.7 ? HALF + 2.2 + r() * 6 : u < 0.92 ? HALF + 8 + r() * 9 : HALF + 17 + r() * 22;
+      // (a good share stand far back, so the distance is always a thicket of trunks and blossom, never open horizon)
+      const off = u < 0.16 ? HALF + 0.7 + r() * 1.5 : u < 0.55 ? HALF + 2.2 + r() * 6 : u < 0.8 ? HALF + 8 + r() * 9 : HALF + 17 + r() * 30;
       const x = pathX(z) + side * off, zz = z + (r() - 0.5) * 2;
       if (!clear(x, zz, 1) || !trees.every((t) => Math.hypot(t.x - x, t.z - zz) > 2.8)) continue;
       trees.push(tree(x, zz, { edge: off < HALF + 3 }));
@@ -114,19 +124,23 @@ export class Garden {
     this.player = { x: pathX(0), z: 0, v: 0, vx: 0, bowT: 0, bow: 0, fade: 0, step: 0, look: 0, lookTo: 0, lookT: 4 };
     this.drag = null;
     this.arrivedT = 0;
-    // people: some stand admiring the trees, some stroll toward you along the path
+    // people: some linger admiring the trees (shifting about, glancing around, wandering a few steps now and then); some stroll
+    // the path, coming toward you or ambling on ahead of you (Tom: more gentle movement)
     const r = this.rand;
     this.people = [];
     let id = 0;
+    const person = (kind, x, z, extra = {}) => ({ id: id++, kind, x, z, homeX: x, homeZ: z, vx: 0, vz: 0, tx: x, tz: z, wait: 1 + r() * 6,
+      bowed: false, bowT: 0, dress: Math.floor(r() * 30), phase: r() * 6, step: r() * 4, head: 0, headTo: 0, headT: r() * 4,
+      face: r() < 0.6, ...extra });
     for (let z = -10; z < PATH_END + 30; z += 6 + r() * 7) {
       const side = r() < 0.5 ? -1 : 1, x = pathX(z) + side * (2 + r() * 6);
-      this.people.push({ id: id++, kind: 'stand', x, z, vz: 0, bowed: false, bowT: 0, look: Math.floor(r() * 5), phase: r() * 6 });
+      this.people.push(person('stand', x, z));
       // often in pairs, admiring the blossom together
-      if (r() < 0.45) this.people.push({ id: id++, kind: 'stand', x: x + side * 0.8, z: z + 0.4, vz: 0, bowed: false, bowT: 0, look: Math.floor(r() * 5), phase: r() * 6 });
+      if (r() < 0.45) this.people.push(person('stand', x + side * 0.8, z + 0.4));
     }
-    for (let k = 0; k < 4; k++) {
-      const z = 35 + k * 45 + r() * 15;
-      this.people.push({ id: id++, kind: 'walk', x: pathX(z) + (r() - 0.5) * 5, z, vz: -(0.45 + r() * 0.2), bowed: false, bowT: 0, look: Math.floor(r() * 5), phase: r() * 6 });
+    for (let k = 0; k < 7; k++) {
+      const z = 20 + k * 28 + r() * 12, away = k % 3 === 1;
+      this.people.push(person('walk', pathX(z) + (r() - 0.5) * 5, z, { vz: away ? 0.5 + r() * 0.2 : -(0.6 + r() * 0.3), face: !away }));
     }
   }
 
@@ -271,19 +285,44 @@ export class Garden {
     } else if (this.state === 'arrived') p.fade = Math.max(0, p.fade - dt / 1.5);
 
     // ---- the other people ----
+    const r = this.rand;
     for (const q of this.people) {
+      // everyone glances about now and then
+      if ((q.headT -= dt) <= 0) { q.headTo = q.headTo ? 0 : (r() < 0.5 ? -1 : 1) * (0.5 + r() * 0.5); q.headT = q.headTo ? 1 + r() * 2 : 2 + r() * 5; }
+      q.head += (q.headTo - q.head) * Math.min(1, dt * 3);
       if (q.bowT > 0) { q.bowT -= dt; continue; }
+      // nobody walks into you: close by, people step out of your way (they never just freeze, which could box you in)
+      const ax = q.x - p.x, az = q.z - p.z, ad = Math.hypot(ax, az), near = playing && ad < 1.6;
+      if (near) {
+        const side = Math.abs(ax) > 0.05 ? Math.sign(ax) : Math.sign(q.x - pathX(q.z)) || 1;
+        q.x += side * 0.9 * dt; q.step += 0.9 * dt * 1.4;
+        if (q.kind === 'stand') { q.tx = q.x; q.tz = q.z; q.homeX += side * 0.9 * dt; }
+      }
       if (q.kind === 'walk') {
-        q.z += q.vz * dt;
+        if (!near) { q.z += q.vz * dt; q.step += Math.abs(q.vz) * dt * 1.4; }
         // they step aside for you, as you do for them
-        if (playing && q.z > p.z && q.z - p.z < 6 && Math.abs(q.x - p.x) < 1.3) q.x += Math.sign(q.x - p.x || 1) * 0.7 * dt;
-        if (q.z < p.z - 9) {                                     // gone behind you: someone else sets off further up the path
-          const nz = p.z + 55 + this.rand() * 40;
-          if (nz < PATH_END + 25) { q.z = nz; q.x = pathX(nz) + (this.rand() - 0.5) * 5; q.bowed = false; q.look = Math.floor(this.rand() * 5); }
+        if (playing && Math.abs(q.z - p.z) < 6 && Math.sign(q.z - p.z) === -Math.sign(q.vz) && Math.abs(q.x - p.x) < 1.3) q.x += Math.sign(q.x - p.x || 1) * 0.7 * dt;
+        // gone behind you: someone else sets off further up the path (coming toward you, or ambling on ahead)
+        if (q.z < p.z - 9 || q.z > p.z + 110) {
+          const nz = q.vz < 0 ? p.z + 55 + r() * 40 : p.z + 25 + r() * 30;
+          if (nz < PATH_END + 25) { q.z = nz; q.x = pathX(nz) + (r() - 0.5) * 5; q.bowed = false; q.dress = Math.floor(r() * 30); }
+        }
+      } else {
+        // lingering: wait a while, then wander a few steps to a new spot near where they were, and admire from there
+        const dx = q.tx - q.x, dz = q.tz - q.z, d = Math.hypot(dx, dz);
+        if (d > 0.05 && !near) {
+          const sp = Math.min(0.55, d * 2);
+          q.x += (dx / d) * sp * dt; q.z += (dz / d) * sp * dt; q.step += sp * dt * 1.4;
+          q.face = dz < 0 || (Math.abs(dz) < 0.2 ? q.face : false);
+        } else if ((q.wait -= dt) <= 0) {
+          q.tx = q.homeX + (r() - 0.5) * 5; q.tz = q.homeZ + (r() - 0.5) * 4; q.wait = 4 + r() * 8;
+          const off = q.tx - pathX(q.tz);                                    // they keep to the sides, off the middle of the path
+          if (Math.abs(off) < 2.2) q.tx = pathX(q.tz) + (Math.sign(off) || 1) * 2.2;
+          if (r() < 0.3) { q.tx = q.x; q.tz = q.z; q.face = !q.face; }     // or just turn round to look the other way
         }
       }
-      if (playing && !q.bowed && p.bowT <= 0 && Math.hypot(q.x - p.x, q.z - p.z) < T.bowNear) {
-        q.bowed = true; q.bowT = T.bowSecs; p.bowT = T.bowSecs;
+      if (playing && !q.bowed && p.bowT <= 0 && this.t - (this.lastBow ?? -99) > T.bowGap && Math.hypot(q.x - p.x, q.z - p.z) < T.bowNear) {
+        q.bowed = true; q.bowT = T.bowSecs; p.bowT = T.bowSecs; this.lastBow = this.t;
         this.stats.bows++;
         if (scoring) { this.addInk(T.inkBow); this.say('bow'); }
       }
