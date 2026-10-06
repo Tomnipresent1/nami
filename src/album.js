@@ -5,6 +5,7 @@ import { VH } from './ocean.js';
 export const PRINTS = [
   { id: 'wave', title: 'THE GREAT WAVE', artist: 'HOKUSAI', ready: true },
   { id: 'shower', title: 'SUDDEN SHOWER', artist: 'HIROSHIGE', ready: true },
+  { id: 'kamata', title: 'KAMATA', artist: 'HIROSHIGE', ready: true },
 ];
 
 const PAPER = '#efe4c6', INK = '#16213b', SEAL = '#b3342b', MUTED = '#4a5470';
@@ -61,9 +62,9 @@ export function drawAlbum(ctx, o) {
     if (info.done > 0) seal(ctx, c.x + c.w - 22, c.y + c.h - 22, 0.6);
 
     const cx = c.x + c.w / 2;
-    text(p.title, cx, c.y + c.h + 36, 22, p.ready ? INK : MUTED, 'bold');
+    text(p.title, cx, c.y + c.h + 36, Math.min(22, c.w / 12), p.ready ? INK : MUTED, 'bold');      // (smaller on narrow cards)
     text(p.artist, cx, c.y + c.h + 62, 13, MUTED);
-    text(cardStatus(p, info), cx, c.y + c.h + 88, 14, p.ready ? INK : MUTED);
+    text(cardStatus(p, info), cx, c.y + c.h + 88, Math.min(14, c.w / 15), p.ready ? INK : MUTED);
   });
 
   if (o.note && o.note.t > 0) { ctx.globalAlpha = Math.min(1, o.note.t / 0.6); text(o.note.text, W / 2, 548, 20, INK, 'italic'); ctx.globalAlpha = 1; }

@@ -1,9 +1,11 @@
 import { Sea, widthFor, SENS_DEG, steerToSim } from './sim.js';
 import { Bridge } from './bridge.js';
+import { Garden } from './garden.js';
 import { createArt } from './art.js';
 import { createBridgeArt } from './bridgeart.js';
+import { createGardenArt } from './gardenart.js';
 import { input, tilt, setupInput, pollInput, recentreTilt, setSteerMode, requestTiltPermission } from './input.js';
-import { sfx, bridgeSfx, unlock, setMuted, ambience, rain } from './audio.js';
+import { sfx, bridgeSfx, gardenSfx, unlock, setMuted, ambience, rain, wind } from './audio.js';
 import { waveAmp, T_GONE, VH as PICTURE_H } from './ocean.js';
 import { PRINTS, cardAt, drawAlbum } from './album.js';
 import { BUILD } from './version.js';
@@ -20,9 +22,11 @@ const seed = params.has('seed') ? +params.get('seed') : Date.now();
 // ---- the prints (levels): each has its own game rules, painting and saved settings ----
 const sea = new Sea({ width: widthFor(aspect()), seed });
 const bridge = new Bridge({ width: widthFor(aspect()), seed: seed + 1 });
+const garden = new Garden({ width: widthFor(aspect()), seed: seed + 2 });
 const levels = {
   wave: { id: 'wave', sim: sea, art: createArt(canvas), key: 'nami.settings', sfx },
   shower: { id: 'shower', sim: bridge, art: createBridgeArt(canvas), key: 'nami.shower.settings', sfx: bridgeSfx },
+  kamata: { id: 'kamata', sim: garden, art: createGardenArt(canvas), key: 'nami.kamata.settings', sfx: gardenSfx },
 };
 const all = Object.values(levels);
 for (const L of all) {
@@ -31,7 +35,7 @@ for (const L of all) {
   L.sim.onSettings = () => save(L.key, L.sim.settings);
 }
 let cur = levels.wave;
-window.__sea = sea; window.__bridge = bridge;      // for tests
+window.__sea = sea; window.__bridge = bridge; window.__garden = garden;      // for tests
 window.__art = levels.wave.art;                     // for tests (draw a frame on demand)
 
 // ---- the album (start screen): choose a print ----
@@ -87,6 +91,7 @@ setupInput({
 });
 const taps = [];
 const pictureY = (clientY) => { const r = canvas.getBoundingClientRect(); return ((clientY - r.top) / (r.height || 1)) * PICTURE_H; };
+const pictureX = (clientX) => { const r = canvas.getBoundingClientRect(); return ((clientX - r.left) / (r.width || 1)) * cur.sim.W; };
 ['pointerdown', 'keydown'].forEach((ev) => addEventListener(ev, unlock, { passive: true }));
 document.addEventListener('visibilitychange', () => { if (document.hidden) cur.sim.pauseGame(); });
 
@@ -135,7 +140,7 @@ function playEvents(L) {
     const f = L.sfx[e.type];
     if (!f) continue;
     if (L === levels.wave) f(e.type === 'crest' ? e.strength : e.type === 'land' ? e.zen : e.type === 'ink' ? e.level : undefined);
-    else f(e.level);
+    else f(e.type === 'chime' ? e.n : e.level);
   }
 }
 
@@ -154,22 +159,29 @@ function frame(now) {
     if (s.albumRequest) { s.albumRequest = false; album.open = true; continue; }   // the print waits, paused
     if (s.recentreRequest) { recentreTilt(); s.recentreRequest = false; }
     if (cur === levels.wave) inp.steer = steerToSim(inp.steer);                    // the picture is flipped, so right on screen = the other way in the maths
-    else {
-      // the bridge: rock the phone, or walk toward your finger (up the screen = toward the far rail)
+    else if (cur === levels.shower) {
+      // the bridge: rock the phone, or slide a finger (up the screen = toward the far rail)
       const tiltOn = s.tiltSteer && tilt.ok;
       inp.across = tiltOn ? inp.steer : inp.vert;
       inp.fingerY = !tiltOn && input.held ? pictureY(input.py) : null;
+      inp.touchId = input.touches;
+    } else {
+      // the garden: hold a finger to walk, slide it left/right to step aside (keys: up to walk, left/right to step)
+      inp.walk = input.held || inp.vert > 0;
+      inp.fingerX = input.held ? pictureX(input.px) : null;
+      inp.across = input.held ? 0 : inp.steer;
       inp.touchId = input.touches;
     }
     s.update(STEP, inp);
     playEvents(cur);
   }
   setMuted(!cur.sim.settings.sound);
-  if (album.open) { ambience(0, 0.5); rain(0); }
+  if (album.open) { ambience(0, 0.5); rain(0); wind(0); }
   else if (cur === levels.wave) {
     let level = 0; for (const w of sea.waves) level = Math.max(level, waveAmp(w) / 200 * (w.t < T_GONE ? 1 : 0));
-    ambience(level, sea.calm / 100); rain(0);
-  } else { ambience(0, 0.2); rain(bridge.paused ? 0.3 : bridge.rain); }
+    ambience(level, sea.calm / 100); rain(0); wind(0);
+  } else if (cur === levels.shower) { ambience(0, 0.2); rain(bridge.paused ? 0.3 : bridge.rain); wind(0); }
+  else { ambience(0, 0.3, 0.25); rain(0); wind(garden.paused ? 0.25 : garden.wind); }
   const b = document.body.classList;
   b.toggle('playing', !album.open && cur.sim.state !== 'title');
   b.toggle('paused', cur.sim.paused);

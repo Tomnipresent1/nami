@@ -3,10 +3,10 @@
 // tilt test) the finger slide works instead: slide left/right anywhere on the screen.
 import { wheelAngle, upFromOrientation, steerFromAngle, TILT_FULL_LOCK } from './tilt.js';
 
-// held/py: is a finger (or mouse button) down, and where it is on the screen (client y): Sudden Shower walks you toward it.
+// held/px/py: is a finger (or mouse button) down, and where the steering finger is on the screen (client x, y).
 // vert: up/down keys (+1 = up).
 // touches: counts every new finger-down, so even a lift-and-touch quicker than one frame is seen as a new touch.
-export const input = { steer: 0, vert: 0, keys: [], start: false, touch: false, held: false, py: 0, touches: 0 };
+export const input = { steer: 0, vert: 0, keys: [], start: false, touch: false, held: false, px: 0, py: 0, touches: 0 };
 export const tilt = { ok: false, angle: 0, smooth: 0, neutral: 0, steer: 0, on: false, flip: false, source: '', events: 0, empty: 0,
   secure: typeof isSecureContext === 'boolean' ? isSecureContext : true, fullLock: TILT_FULL_LOCK };
 
@@ -62,7 +62,7 @@ export function setupInput({ onPause, canvas, onTap } = {}) {
   const steerWith = (pid) => {
     id = pid; slide = 0;
     if (pid === null) { input.held = false; return; }
-    const f = fingers.get(pid); ox = f.x; input.held = true; input.py = f.y; input.touches++;
+    const f = fingers.get(pid); ox = f.x; input.held = true; input.px = f.x; input.py = f.y; input.touches++;
   };
   canvas.addEventListener('pointerdown', (e) => {
     pressed = true; onTap && onTap(e);
@@ -74,7 +74,7 @@ export function setupInput({ onPause, canvas, onTap } = {}) {
     const f = fingers.get(e.pointerId); if (!f) return;
     f.x = e.clientX; f.y = e.clientY;
     if (e.pointerId !== id) return;
-    slide = clamp((e.clientX - ox) / RANGE, -1, 1); input.py = e.clientY;
+    slide = clamp((e.clientX - ox) / RANGE, -1, 1); input.px = e.clientX; input.py = e.clientY;
   });
   const up = (e) => {
     if (!fingers.delete(e.pointerId) || e.pointerId !== id) return;

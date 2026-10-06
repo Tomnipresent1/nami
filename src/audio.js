@@ -1,6 +1,6 @@
 // NAMI's sound, all made live with WebAudio (no files): a breathing sea, plucked koto-like notes in a Japanese scale that
 // answer your own rocking, a low swell that builds before a wave breaks, and a soft crash when it lands.
-let ac = null, master = null, bed = null, drone = null, rainBed = null, muted = false, lastPluck = 0;
+let ac = null, master = null, bed = null, drone = null, rainBed = null, windBed = null, muted = false, lastPluck = 0;
 
 // a Japanese "hirajoshi"-style five-note scale (D E F A Bb), two octaves
 const SCALE = [293.66, 329.63, 349.23, 440, 466.16, 587.33, 659.25, 698.46, 880, 932.33];
@@ -39,6 +39,13 @@ export function unlock() {
   const rg = ac.createGain(); rg.gain.value = 0;
   rs.connect(hp); hp.connect(rlp); rlp.connect(rg); rg.connect(master); rs.start();
   rainBed = { g: rg, lp: rlp };
+
+  // wind (Kamata): soft, low, breathy noise through a band filter, silent until wind() turns it up
+  const ws = ac.createBufferSource(); ws.buffer = buf; ws.loop = true; ws.playbackRate.value = 0.7;
+  const wbp = ac.createBiquadFilter(); wbp.type = 'bandpass'; wbp.frequency.value = 420; wbp.Q.value = 0.6;
+  const wg = ac.createGain(); wg.gain.value = 0;
+  ws.connect(wbp); wbp.connect(wg); wg.connect(master); ws.start();
+  windBed = { g: wg, bp: wbp };
 }
 
 function pluck(freq, vol = 0.18, delay = 0, len = 1.6) {
@@ -71,11 +78,11 @@ function swell(f0, f1, dur, vol) {
   o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.05);
 }
 
-/** Call every frame: how close/big the nearest wave is (0..1) and how calm you are (0..1). */
-export function ambience(level, calm) {
+/** Call every frame: how close/big the nearest wave is (0..1), how calm you are (0..1), and how loud the sea bed is (1 = the Great Wave). */
+export function ambience(level, calm, bedScale = 1) {
   if (!ac) return;
   const t = ac.currentTime;
-  bed.g.gain.setTargetAtTime(0.09 + level * 0.12, t, 0.4);
+  bed.g.gain.setTargetAtTime((0.09 + level * 0.12) * bedScale, t, 0.4);
   bed.lp.frequency.setTargetAtTime(380 + level * 700 + calm * 120, t, 0.4);
   drone.g.gain.setTargetAtTime(0.012 + calm * 0.012, t, 0.8);
 }
@@ -116,6 +123,52 @@ function plip(freq, vol, delay = 0) {
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.005); g.gain.exponentialRampToValueAtTime(0.0003, t + 0.09);
   o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.12);
 }
+
+/** Call every frame: how hard the breeze is blowing (0 = no wind sound at all). */
+export function wind(level) {
+  if (!ac) return;
+  const t = ac.currentTime;
+  windBed.g.gain.setTargetAtTime(level * 0.16, t, 0.8);
+  windBed.bp.frequency.setTargetAtTime(300 + level * 500, t, 0.8);
+}
+// a hollow wooden chime: a short woody tone with a quick overtone and a soft click
+function woodChime(freq, vol, delay = 0) {
+  if (!ac) return;
+  const t = ac.currentTime + delay;
+  for (const [ratio, v, len] of [[1, 1, 0.9], [2.9, 0.3, 0.25]]) {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sine'; o.frequency.value = freq * ratio;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol * v, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0003, t + len);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + len + 0.05);
+  }
+  noise(0.03, vol * 0.3, 2500, 1200, delay);
+}
+const CHIMES = [392, 440, 523.25, 587.33, 659.25, 784];
+// the uguisu (bush warbler), the bird of the plum blossom: a long rising "hoooo", then a quick "ho-ke-kyo"
+function whistle(f0, f1, start, len, vol) {
+  const t = ac.currentTime + start, o = ac.createOscillator(), g = ac.createGain(), lfo = ac.createOscillator(), lg = ac.createGain();
+  o.type = 'sine'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + len);
+  lfo.frequency.value = 22; lg.gain.value = f0 * 0.008; lfo.connect(lg); lg.connect(o.frequency);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + Math.min(0.15, len * 0.3)); g.gain.setValueAtTime(vol, t + len * 0.8); g.gain.exponentialRampToValueAtTime(0.0003, t + len);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + len + 0.05); lfo.start(t); lfo.stop(t + len + 0.05);
+}
+
+/** Kamata's sounds. */
+export const gardenSfx = {
+  bow() { bell(880, 0.08); bell(1318.5, 0.045, 0.32); },
+  chime(n = 3) { let d = 0; for (let i = 0; i < n; i++) { woodChime(CHIMES[Math.floor(Math.random() * CHIMES.length)], 0.045, d); d += 0.18 + Math.random() * 0.35; } },
+  bird() {
+    if (!ac) return;
+    const far = 0.5 + Math.random() * 0.5;
+    whistle(1150, 1300, 0, 0.9, 0.035 * far);
+    whistle(2350, 2050, 1.05, 0.12, 0.03 * far); whistle(1850, 1800, 1.22, 0.1, 0.03 * far); whistle(2750, 2550, 1.36, 0.22, 0.032 * far);
+  },
+  arrived() { [0, 2, 4, 6, 8].forEach((i, k) => pluck(SCALE[i], 0.1, k * 0.16, 2.4)); },
+  ink(level) { sfx.ink(level); },
+  complete() { sfx.complete(); },
+  start() { sfx.start(); },
+  blip() { sfx.blip(); },
+};
 
 /** Sudden Shower's sounds. */
 export const bridgeSfx = {
