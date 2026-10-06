@@ -27,8 +27,50 @@ const LAYERS = {
   shadow: ['#d5dccd', '#4f8a6e', 14, 50],
 };
 const SKIN = '#ecd2b0', HAIR = '#1d1a1c';
-const KIMONO = ['#b2362e', '#2f7a5b', '#2d4b7d', '#7a5a8c', '#4a4a55', '#c06a3a'];
-const OBI = ['#e7c76a', '#d9d2c0', '#9b2c2c', '#2d4b7d'];
+// What people wear (Tom: more variety, "it's a bit like walking through a cult headquarters"): kimono in an Edo-period palette with
+// the patterns you see all through ukiyo-e: asanoha (hemp-leaf star), seigaiha (waves), ichimatsu (chequers), kikko (tortoiseshell),
+// stripes, fine dots. [ground colour, pattern, pattern colour, sash, haori jacket colour or null]
+const OUTFITS = [
+  ['#2d4b7d', 'asanoha', '#a9c0d8', '#e7c76a', null],
+  ['#6b4a35', 'stripes', '#a8835c', '#2a2420', '#2b2a30'],
+  ['#3f5d55', 'dots', '#c9d6c6', '#9b2c2c', null],
+  ['#8a2f2a', 'seigaiha', '#e3b9a4', '#e9dcb8', null],
+  ['#4a4a55', 'check', '#6f6f7c', '#c7a45a', '#22242b'],
+  ['#5d3f5f', 'kikko', '#b49cb4', '#e7c76a', null],
+  ['#2a3f63', 'stripes', '#7f97b8', '#d9d2c0', null],
+  ['#7a5a3a', 'dots', '#d8bf94', '#2d4b7d', '#3b2e26'],
+  ['#3d5f7a', 'seigaiha', '#b9d0de', '#9b2c2c', null],
+  ['#6e2e3a', 'asanoha', '#d9a9a6', '#2a2a2a', null],
+  ['#56603e', 'kikko', '#aab38a', '#b2362e', '#2e3324'],
+  ['#c06a3a', 'check', '#9a4f28', '#2d4b7d', null],
+  ['#384a3e', 'plain', null, '#d9b85f', '#1f2622'],
+  ['#9c7a4c', 'stripes', '#5e4a30', '#6e2e3a', null],
+];
+const TILE = 40, TILE_UNITS = 0.26;              // one pattern repeat is about a quarter of a unit (a hand's width) on the cloth
+function makePatternTile(type, base, fg) {
+  const c = document.createElement('canvas'); c.width = c.height = TILE;
+  const x = c.getContext('2d'), T = TILE;
+  x.fillStyle = base; x.fillRect(0, 0, T, T);
+  x.strokeStyle = fg; x.fillStyle = fg; x.lineWidth = 2;
+  if (type === 'stripes') { for (const sx of [6, 20, 26]) x.fillRect(sx, 0, sx === 20 ? 5 : 2, T); }
+  else if (type === 'check') { x.fillRect(0, 0, T / 2, T / 2); x.fillRect(T / 2, T / 2, T / 2, T / 2); }
+  else if (type === 'dots') { for (const [dx, dy] of [[10, 10], [30, 30], [30, 10], [10, 30], [20, 20]]) { x.beginPath(); x.arc(dx, dy, dx === 20 ? 2.5 : 1.8, 0, Math.PI * 2); x.fill(); } }
+  else if (type === 'seigaiha') {
+    // overlapping fans of concentric arcs, row upon row, like waves
+    for (const [cx, cy] of [[0, T], [T, T], [T / 2, T / 2], [0, 0], [T, 0]]) for (const rr of [T * 0.48, T * 0.34, T * 0.2]) { x.beginPath(); x.arc(cx, cy, rr, Math.PI, 0); x.stroke(); }
+  } else if (type === 'kikko') {
+    x.lineWidth = 1.6; const h = T / 2;
+    x.beginPath(); x.moveTo(T * 0.25, 0); x.lineTo(T * 0.75, 0); x.moveTo(T * 0.75, 0); x.lineTo(T, h); x.lineTo(T * 0.75, T); x.lineTo(T * 0.25, T); x.lineTo(0, h); x.lineTo(T * 0.25, 0); x.stroke();
+  } else if (type === 'asanoha') {
+    // the hemp-leaf star: lines radiating from the centre and corners
+    x.lineWidth = 1.2; const m = T / 2;
+    x.beginPath();
+    for (const [px, py] of [[0, 0], [T, 0], [0, T], [T, T], [m, 0], [m, T], [0, m], [T, m]]) { x.moveTo(m, m); x.lineTo(px, py); }
+    for (const [px, py] of [[0, 0], [T, 0], [0, T], [T, T]]) { x.moveTo(px, py); x.lineTo(m, py === 0 ? T * 0.25 : T * 0.75); }
+    x.stroke();
+  }
+  return c;
+}
 const YOU = '#a8452f';
 
 // ---- painted cut-outs, made once ----
@@ -269,6 +311,22 @@ export function createGardenArt(canvas) {
     ctx.closePath(); ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 0.025; ctx.stroke();
     ctx.restore();
   }
+  // patterned cloth for outfit i, made once (scaled so one repeat is about a hand's width on the figure)
+  const cloths = new Map();
+  function cloth(i) {
+    const k = i % OUTFITS.length;
+    if (!cloths.has(k)) {
+      const [base, type, fg] = OUTFITS[k];
+      let fill = base;
+      if (type !== 'plain') {
+        fill = ctx.createPattern(makePatternTile(type, base, fg), 'repeat');
+        if (fill && fill.setTransform && typeof DOMMatrix === 'function') fill.setTransform(new DOMMatrix([TILE_UNITS / TILE, 0, 0, TILE_UNITS / TILE, 0, 0]));
+        else fill = base;                                                            // (no pattern support: plain cloth)
+      }
+      cloths.set(k, fill);
+    }
+    return cloths.get(k);
+  }
   function drawPerson(p, o) {
     // a figure in kimono, about 1.6 tall; front: facing you, else seen from behind
     const s = p[2];
@@ -281,9 +339,11 @@ export function createGardenArt(canvas) {
     const bow = o.bow || 0;
     ctx.fillStyle = o.robe; ctx.beginPath(); ctx.moveTo(-0.24, 0); ctx.lineTo(0.24, 0); ctx.lineTo(0.2, -0.75); ctx.lineTo(-0.2, -0.75); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = INK; ctx.lineWidth = 0.025; ctx.stroke();
+    if (o.haori) { ctx.fillStyle = o.haori; ctx.fillRect(-0.205, -0.75, 0.41, 0.24); ctx.strokeRect(-0.205, -0.75, 0.41, 0.24); }   // the jacket's hem
     ctx.save(); ctx.translate(0, -0.75); ctx.rotate((o.idle || 0) * 0.035); ctx.scale(1, 1 - 0.35 * bow); ctx.translate(0, 0.12 * bow);   // (idle: shifting weight)
-    ctx.fillStyle = o.robe; ctx.beginPath(); ctx.moveTo(-0.2, 0); ctx.lineTo(0.2, 0); ctx.lineTo(0.17, -0.55); ctx.lineTo(-0.17, -0.55); ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = o.obi; ctx.fillRect(-0.2, -0.22, 0.4, 0.13);
+    ctx.fillStyle = o.haori || o.robe; ctx.beginPath(); ctx.moveTo(-0.2, 0); ctx.lineTo(0.2, 0); ctx.lineTo(0.17, -0.55); ctx.lineTo(-0.17, -0.55); ctx.closePath(); ctx.fill(); ctx.stroke();
+    if (o.haori) { ctx.strokeStyle = 'rgba(230,220,200,0.6)'; ctx.lineWidth = 0.02; ctx.beginPath(); ctx.moveTo(-0.08, -0.5); ctx.lineTo(0, -0.2); ctx.lineTo(0.08, -0.5); ctx.stroke(); }   // the jacket's open front
+    else { ctx.fillStyle = o.obi; ctx.fillRect(-0.2, -0.22, 0.4, 0.13); }
     const look = o.look || 0;                                                                     // seen from behind: -1 left .. 1 right
     ctx.fillStyle = o.front ? SKIN : HAIR; ctx.beginPath(); ctx.arc(o.front ? look * 0.035 : 0, -0.68, 0.12, 0, Math.PI * 2); ctx.fill();   // (facing you: the face turns)
     if (!o.front && Math.abs(look) > 0.05) {
@@ -382,7 +442,7 @@ export function createGardenArt(canvas) {
       else if (kind === 'hut') drawHut(o, q);
       else if (kind === 'fence') drawFence(o, q);
       else if (kind === 'kago') drawKago(q, sim.wind, time);
-      else if (kind === 'person') drawPerson(q, { robe: KIMONO[o.dress % KIMONO.length], obi: OBI[(o.dress >> 2) % OBI.length], front: o.face,
+      else if (kind === 'person') drawPerson(q, { robe: cloth(o.dress), obi: OUTFITS[o.dress % OUTFITS.length][3], haori: OUTFITS[o.dress % OUTFITS.length][4], front: o.face,
         step: o.step, bow: o.bowT > 0 ? Math.sin((o.bowT / 1.4) * Math.PI) : 0, look: o.head, idle: Math.sin(time * 0.7 + o.phase) });
       else drawPerson(q, { robe: YOU, obi: '#e8d9b0', front: false, step: o.step, bow: o.bow, alpha: o.fade, look: o.look });
     }
