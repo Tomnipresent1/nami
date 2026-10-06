@@ -48,30 +48,37 @@ export const HUTS = [
 export const KAGO = { x: pathX(-5) + 3.4, z: -5, hw: 1.5, hd: 0.8 };
 export const POND = { x0: -22, x1: -9.5, z0: 30, z1: 62 };
 
+export const TREE_KINDS = 8;                 // different painted trees (each with its own trunk tone and blossom)
+
 export function buildGarden() {
   const r = mulberry32(1857);                // the year of the print
-  const trees = [];
+  const trees = [], fences = [];
   const clear = (x, z, pad) => HUTS.every((h) => Math.abs(x - h.x) > h.hw + pad || Math.abs(z - h.z) > h.hd + pad)
     && (Math.abs(x - KAGO.x) > KAGO.hw + pad || Math.abs(z - KAGO.z) > KAGO.hd + pad)
     && !(x > POND.x0 - 1 && x < POND.x1 + 1 && z > POND.z0 - 1 && z < POND.z1 + 1);
-  for (let z = 4; z < 330; z += 4 + r() * 3) {
-    // one tree on or beside the path now and then: something to step around
-    if (z > 14 && z < PATH_END - 4 && r() < 0.4) {
+  const tree = (x, z, extra = {}) => ({ x, z, r: 0.6, kind: Math.floor(r() * TREE_KINDS), seed: r() * 100,
+    size: 0.82 + r() * 0.42, flip: r() < 0.5, ...extra });       // every tree a little different: size, mirrored or not
+  // the garden starts well behind where you begin, so you start in the middle of it, not walking up to it (Tom)
+  for (let z = -45; z < 330; z += 2 + r() * 3.5) {
+    // now and then a tree on or right beside the path: something to step around
+    if (z > 14 && z < PATH_END - 4 && r() < 0.22) {
       const x = pathX(z) + (r() - 0.5) * 7;
-      if (clear(x, z, 1.5) && trees.every((t) => Math.hypot(t.x - x, t.z - z) > 4)) trees.push({ x, z, r: 0.6, kind: Math.floor(r() * 4), seed: r() * 100 });
+      if (clear(x, z, 1.5) && trees.every((t) => Math.hypot(t.x - x, t.z - z) > 4)) trees.push(tree(x, z));
     }
-    // the orchard either side, packed in close so you feel inside it (Tom: intimate, enclosed): a row lining the path whose trunks
-    // pass along the edges of the screen like the print's cropped foreground tree, a second row behind, and only a few far off
-    for (const side of [-1, 1]) {
-      const rows = [[HALF + 1.2, 2.5, 0.9], [HALF + 5, 7, 0.7], [HALF + 13, 18, 0.35]];
-      for (const [near, spread, chance] of rows) {
-        if (r() > chance) continue;
-        const x = pathX(z) + side * (near + r() * spread), zz = z + (r() - 0.5) * 3;
-        if (clear(x, zz, 1) && trees.every((t) => Math.hypot(t.x - x, t.z - zz) > 3.2)) trees.push({ x, z: zz, r: 0.6, kind: Math.floor(r() * 4), seed: r() * 100, edge: near < HALF + 2 });
-      }
+    // the orchard either side: irregular, no rows (Tom: they looked like a line). Most trees crowd in fairly close, some stand
+    // right by the path (their trunks sweep past the screen's edges, cropped, like the print's big foreground tree), a few far back
+    for (const side of [-1, 1, -1, 1]) {
+      if (r() < 0.2) continue;
+      const u = r();
+      const off = u < 0.18 ? HALF + 0.7 + r() * 1.5 : u < 0.7 ? HALF + 2.2 + r() * 6 : u < 0.92 ? HALF + 8 + r() * 9 : HALF + 17 + r() * 22;
+      const x = pathX(z) + side * off, zz = z + (r() - 0.5) * 2;
+      if (!clear(x, zz, 1) || !trees.every((t) => Math.hypot(t.x - x, t.z - zz) > 2.8)) continue;
+      trees.push(tree(x, zz, { edge: off < HALF + 3 }));
+      // a low bamboo fence beside some of the trees, as in the print
+      if (off > HALF + 1.5 && off < HALF + 14 && r() < 0.3) fences.push({ x: x + side * (0.8 + r()), z: zz - 0.6 - r(), w: 1.4 + r() * 1.8, seed: r() * 100 });
     }
   }
-  return { trees };
+  return { trees, fences };
 }
 
 export class Garden {
@@ -104,14 +111,14 @@ export class Garden {
     this.newStroll();
   }
   newStroll() {
-    this.player = { x: pathX(0), z: 0, v: 0, vx: 0, bowT: 0, bow: 0, fade: 0, step: 0 };
+    this.player = { x: pathX(0), z: 0, v: 0, vx: 0, bowT: 0, bow: 0, fade: 0, step: 0, look: 0, lookTo: 0, lookT: 4 };
     this.drag = null;
     this.arrivedT = 0;
     // people: some stand admiring the trees, some stroll toward you along the path
     const r = this.rand;
     this.people = [];
     let id = 0;
-    for (let z = 18; z < PATH_END + 30; z += 8 + r() * 8) {
+    for (let z = -10; z < PATH_END + 30; z += 6 + r() * 7) {
       const side = r() < 0.5 ? -1 : 1, x = pathX(z) + side * (2 + r() * 6);
       this.people.push({ id: id++, kind: 'stand', x, z, vz: 0, bowed: false, bowT: 0, look: Math.floor(r() * 5), phase: r() * 6 });
       // often in pairs, admiring the blossom together
@@ -240,6 +247,17 @@ export class Garden {
       this.collide(p, dt, walking);
       const mid = pathX(p.z);
       p.x = clamp(p.x, mid - HALF, mid + HALF);
+      // now and then you glance to one side (often toward someone nearby), then look ahead again (Tom: a bit more life)
+      if ((p.lookT -= dt) <= 0) {
+        if (p.lookTo !== 0) { p.lookTo = 0; p.lookT = 3 + this.rand() * 5; }
+        else {
+          const near = this.people.filter((q) => q.z > p.z - 1 && q.z - p.z < 9).sort((a, b) => Math.abs(a.z - p.z) - Math.abs(b.z - p.z))[0];
+          const side = near && this.rand() < 0.7 ? Math.sign(near.x - p.x) || 1 : this.rand() < 0.5 ? -1 : 1;
+          p.lookTo = side * (0.6 + this.rand() * 0.4); p.lookT = 1.2 + this.rand() * 1.6;
+        }
+      }
+      if (p.bowT > 0) p.lookTo = 0;
+      p.look += (p.lookTo - p.look) * Math.min(1, dt * 3);
       const walked = Math.max(0, p.z - z0);
       this.stats.walked += walked;
       if (scoring) this.addInk(walked * T.inkPerUnit);

@@ -3,7 +3,7 @@
 // and petals blowing through the air. A paper-theatre camera: everything is a flat painted cut-out standing in the garden, and the
 // camera follows behind and above you, so the cut-outs slide past and grow as you walk in. This file only draws.
 import { VH, clamp } from './ocean.js';
-import { pathX, HUTS, KAGO, POND, GARDEN_PAUSE_ROWS, G_FINGER_OPTS, STROLL_CHOICES, DONE_CHOICES, DONE_WAIT } from './garden.js';
+import { pathX, HUTS, KAGO, POND, TREE_KINDS, GARDEN_PAUSE_ROWS, G_FINGER_OPTS, STROLL_CHOICES, DONE_CHOICES, DONE_WAIT } from './garden.js';
 import { CHOICE_WAIT } from './choice.js';
 import { createUI, inked, INK, MUTED } from './ui.js';
 import { BUILD } from './version.js';
@@ -11,8 +11,9 @@ import { BUILD } from './version.js';
 // ---- the camera (all of these can be tuned for feel) ----
 // F = zoom (bigger = a longer lens: flatter, more layered, closer to the prints' "cheated" near-orthographic look). back = how far behind
 // you the camera floats; F / back sets your size (kept the same as v24). horizon = how far down the screen the horizon sits.
-// (v24: F 440, back 7, horizon 250, height 3: felt wide and sparse; Tom wants intimate and enclosed)
-const CAM = { F: 900, horizon: 290, height: 2.8, back: 14, follow: 0.7, ease: 2 };
+// (v24: F 440, back 7, horizon 250, height 3: felt wide and sparse; Tom wants intimate and enclosed. v25: F 900, back 14.
+//  v26: flatter again, Tom: "we will flatten it a little bit more")
+const CAM = { F: 1250, horizon: 290, height: 2.8, back: 19.5, follow: 0.7, ease: 2 };
 const START_INK = 25;
 const LAYERS = {
   skyTop: ['#efd9c4', '#d4604f', 8, 40],      // deep rose at the top...
@@ -32,15 +33,19 @@ const YOU = '#a8452f';
 
 // ---- painted cut-outs, made once ----
 function rng(seed) { let a = Math.floor(seed * 1e6) | 0; return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
-const TREE_PX = 90;                          // sprite pixels per garden unit (a tree is about 7 units tall)
+const TREE_PX = 76;                          // sprite pixels per garden unit (a tree is about 8 units tall)
+// each painted tree has its own trunk tone and amount of blossom, so the orchard never looks like one tree repeated (Tom)
+const TRUNKS = ['#3a2d2a', '#4a3a33', '#2e2523', '#53413a', '#3d3330', '#4b3b2e', '#352a2d', '#42332b'];
+const BLOOM = [1, 0.8, 0.62, 1, 0.9, 0.7, 1, 0.85];
+const PETAL = ['#fbf6ec', '#fdf3ee', '#f8f4ea', '#fbf1ef', '#fbf6ec', '#f6f1e6', '#fdf5f3', '#faf6ee'];
 function makeTree(kind) {
-  const W = 900, H = 720, c = document.createElement('canvas'); c.width = W; c.height = H;
-  const x = c.getContext('2d'), r = rng(kind + 0.123);
+  const W = 760, H = 608, k = H / 720, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d'), r = rng(kind + 0.123), bark = TRUNKS[kind % TRUNKS.length];
   const tips = [];
   const branch = (bx, by, ang, len, w, depth) => {
     const bend = (r() - 0.5) * 0.5, ex = bx + Math.cos(ang) * len, ey = by - Math.sin(ang) * len;
     const mx = (bx + ex) / 2 + Math.cos(ang + Math.PI / 2) * len * bend * 0.3, my = (by + ey) / 2 - Math.sin(ang + Math.PI / 2) * len * bend * 0.3;
-    x.strokeStyle = '#3d302d'; x.lineWidth = w; x.lineCap = 'round';
+    x.strokeStyle = bark; x.lineWidth = w * k; x.lineCap = 'round';
     x.beginPath(); x.moveTo(bx, by); x.quadraticCurveTo(mx, my, ex, ey); x.stroke();
     if (depth <= 2) for (let k = 0; k < 3; k++) { const u = 0.3 + r() * 0.7; tips.push([bx + (ex - bx) * u + (r() - 0.5) * 6, by + (ey - by) * u + (r() - 0.5) * 6]); }
     if (depth === 0) { tips.push([ex, ey]); return; }
@@ -52,19 +57,21 @@ function makeTree(kind) {
     }
   };
   // a thick, gnarled trunk that splits low
-  const bx = W / 2, by = H - 8, split = H * (0.36 + r() * 0.12);
-  x.fillStyle = '#3a2d2a';
-  x.beginPath(); x.moveTo(bx - 34, by); x.quadraticCurveTo(bx - 20 + (r() - 0.5) * 30, by - split * 0.5, bx - 22, by - split);
-  x.lineTo(bx + 20, by - split); x.quadraticCurveTo(bx + 18 + (r() - 0.5) * 30, by - split * 0.5, bx + 36, by); x.closePath(); x.fill();
-  x.strokeStyle = 'rgba(120,96,86,0.5)'; x.lineWidth = 3; x.beginPath(); x.moveTo(bx - 6, by - 10); x.quadraticCurveTo(bx + 4, by - split * 0.5, bx - 4, by - split + 10); x.stroke();
-  branch(bx - 12, by - split + 4, Math.PI / 2 + 0.45 + r() * 0.2, H * 0.24, 26, 5);
-  branch(bx + 12, by - split + 4, Math.PI / 2 - 0.45 - r() * 0.2, H * 0.24, 24, 5);
+  const bx = W / 2, by = H - 8, split = H * (0.36 + r() * 0.12), tw = (0.85 + r() * 0.35) * k;
+  x.fillStyle = bark;
+  x.beginPath(); x.moveTo(bx - 34 * tw, by); x.quadraticCurveTo(bx + (-20 + (r() - 0.5) * 30) * tw, by - split * 0.5, bx - 22 * tw, by - split);
+  x.lineTo(bx + 20 * tw, by - split); x.quadraticCurveTo(bx + (18 + (r() - 0.5) * 30) * tw, by - split * 0.5, bx + 36 * tw, by); x.closePath(); x.fill();
+  x.strokeStyle = 'rgba(130,104,92,0.45)'; x.lineWidth = 3 * k; x.beginPath(); x.moveTo(bx - 6 * tw, by - 10); x.quadraticCurveTo(bx + 4 * tw, by - split * 0.5, bx - 4 * tw, by - split + 10); x.stroke();
+  branch(bx - 12 * tw, by - split + 4, Math.PI / 2 + 0.45 + r() * 0.2, H * 0.24, 26, 5);
+  branch(bx + 12 * tw, by - split + 4, Math.PI / 2 - 0.45 - r() * 0.2, H * 0.24, 24, 5);
   if (r() < 0.6) branch(bx, by - split, Math.PI / 2 + (r() - 0.5) * 0.3, H * 0.2, 18, 4);
-  // white plum blossom, with a few pink-hearted ones and dark buds
+  // white plum blossom, with a few pink-hearted ones and dark buds; some trees fuller than others
+  const bloom = BLOOM[kind % BLOOM.length];
   for (const [tx, ty] of tips) {
-    if (r() < 0.25) { x.fillStyle = '#3a2d2a'; x.beginPath(); x.arc(tx, ty, 2.2, 0, Math.PI * 2); x.fill(); continue; }
-    const s = 4.5 + r() * 3;
-    x.fillStyle = '#fbf6ec'; x.beginPath(); x.arc(tx, ty, s, 0, Math.PI * 2); x.fill();
+    if (r() > bloom) continue;
+    if (r() < 0.25) { x.fillStyle = bark; x.beginPath(); x.arc(tx, ty, 2.2 * k, 0, Math.PI * 2); x.fill(); continue; }
+    const s = (4.5 + r() * 3) * k;
+    x.fillStyle = PETAL[kind % PETAL.length]; x.beginPath(); x.arc(tx, ty, s, 0, Math.PI * 2); x.fill();
     x.strokeStyle = 'rgba(90,60,60,0.55)'; x.lineWidth = 1; x.stroke();
     x.fillStyle = r() < 0.4 ? '#e09a9a' : '#d9b85f'; x.beginPath(); x.arc(tx, ty, s * 0.3, 0, Math.PI * 2); x.fill();
   }
@@ -118,7 +125,7 @@ export function createGardenArt(canvas) {
   }
   function ensureSprites() {
     if (trees) return;
-    trees = [0, 1, 2, 3].map(makeTree);
+    trees = Array.from({ length: TREE_KINDS }, (_, i) => makeTree(i));
     huts = { single: makeHut(false), double: makeHut(true) };
     // the far orchard along the horizon: rows of little blossoming trees, misty
     farBand = document.createElement('canvas'); farBand.width = 1600; farBand.height = 110;
@@ -142,9 +149,13 @@ export function createGardenArt(canvas) {
   // far things fade into the haze, near things fade so they never fill the screen
   // things between the camera and you: near the middle of the screen they fade out (so nothing blocks your view or turns into a
   // pale ghost); out at the edges they stay solid and sweep past, cropped by the frame like the print's big foreground trunk
+  // (v26: only things that would actually stand in front of YOU fade, and quickly; the rest stay solid, no half-see-through ghosts)
+  let youX = W / 2;
   const fadeFor = (dz, sx = W / 2) => {
-    const edge = clamp((Math.abs(sx - W / 2) / (W / 2) - 0.3) / 0.35, 0, 1);
-    return Math.max(clamp((dz - 6) / 4, 0, 1), edge * clamp((dz - 1.5) / 1.5, 0, 1)) * (1 - 0.5 * clamp((dz - 70) / 150, 0, 1));
+    const haze = 1 - 0.5 * clamp((dz - 90) / 180, 0, 1);
+    if (dz >= CAM.back - 1) return haze;                                        // beyond you: never in the way
+    const inFront = Math.abs(sx - youX) < W * 0.13;
+    return (inFront ? clamp((dz - CAM.back * 0.6) / (CAM.back * 0.12), 0, 1) : clamp((dz - 1.5) / 1.5, 0, 1)) * haze;
   };
 
   // ---------- backdrop ----------
@@ -193,11 +204,11 @@ export function createGardenArt(canvas) {
 
   // ---------- cut-outs ----------
   function drawTree(t, p, wind, time) {
-    const sp = trees[t.kind], s = p[2], w = sp.w * s, h = sp.h * s;
+    const sp = trees[t.kind % trees.length], s = p[2] * (t.size || 1), w = sp.w * s, h = sp.h * s;
     ctx.save(); ctx.globalAlpha = fadeFor(p[3], p[0]);
-    // the crown sways with the breeze; the trunk stays put (a shear about the base)
+    // the crown sways with the breeze; the trunk stays put (a shear about the base). Some trees are drawn mirrored.
     const sway = (Math.sin(time * 1.1 + t.seed) * 0.5 + Math.sin(time * 2.3 + t.seed * 2) * 0.2) * wind * 0.045;
-    ctx.setTransform(scale, 0, sway * scale, scale, (p[0] - sway * p[1]) * scale, 0);
+    ctx.setTransform((t.flip ? -1 : 1) * scale, 0, sway * scale, scale, (p[0] - sway * p[1]) * scale, 0);
     ctx.drawImage(sp.c, -w / 2, p[1] - h, w, h);
     ctx.restore();
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
@@ -206,6 +217,20 @@ export function createGardenArt(canvas) {
     const sp = hut.double ? huts.double : huts.single, s = p[2];
     ctx.save(); ctx.globalAlpha = fadeFor(p[3], p[0]);
     ctx.drawImage(sp.c, p[0] - (sp.w * s) / 2, p[1] - sp.h * s, sp.w * s, sp.h * s);
+    ctx.restore();
+  }
+  function drawFence(f, p) {
+    // a low bamboo fence: two rails and a row of thin uprights, as around the trees in the print
+    const s = p[2], hw = (f.w / 2) * s, h = 0.55 * s;
+    ctx.save(); ctx.globalAlpha = 0.9 * fadeFor(p[3], p[0]);
+    ctx.strokeStyle = '#4b5a3c'; ctx.lineCap = 'round';
+    ctx.lineWidth = Math.max(0.6, 0.05 * s);
+    ctx.beginPath(); ctx.moveTo(p[0] - hw, p[1] - h * 0.85); ctx.lineTo(p[0] + hw, p[1] - h * 0.85); ctx.moveTo(p[0] - hw, p[1] - h * 0.4); ctx.lineTo(p[0] + hw, p[1] - h * 0.4); ctx.stroke();
+    ctx.lineWidth = Math.max(0.5, 0.035 * s);
+    const n = Math.max(3, Math.round(f.w * 5));
+    ctx.beginPath();
+    for (let i = 0; i <= n; i++) { const fx = p[0] - hw + (2 * hw * i) / n, top = h * (0.9 + 0.15 * Math.sin(f.seed + i * 1.7)); ctx.moveTo(fx, p[1]); ctx.lineTo(fx, p[1] - top); }
+    ctx.stroke();
     ctx.restore();
   }
   function drawKago(p, wind, time) {
@@ -249,9 +274,14 @@ export function createGardenArt(canvas) {
     ctx.save(); ctx.translate(0, -0.75); ctx.scale(1, 1 - 0.35 * bow); ctx.translate(0, 0.12 * bow);
     ctx.fillStyle = o.robe; ctx.beginPath(); ctx.moveTo(-0.2, 0); ctx.lineTo(0.2, 0); ctx.lineTo(0.17, -0.55); ctx.lineTo(-0.17, -0.55); ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.fillStyle = o.obi; ctx.fillRect(-0.2, -0.22, 0.4, 0.13);
+    const look = o.look || 0;                                                                     // seen from behind: -1 left .. 1 right
     ctx.fillStyle = o.front ? SKIN : HAIR; ctx.beginPath(); ctx.arc(0, -0.68, 0.12, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = HAIR; ctx.beginPath(); ctx.arc(0, o.front ? -0.74 : -0.7, 0.12, Math.PI, 0); ctx.fill();
-    ctx.beginPath(); ctx.arc(0, -0.84, 0.07, 0, Math.PI * 2); ctx.fill();                       // hair bun
+    if (!o.front && Math.abs(look) > 0.05) {
+      // turning the head: a sliver of cheek and ear shows on the side you look toward, and the bun swings the other way
+      ctx.fillStyle = SKIN; ctx.beginPath(); ctx.ellipse(look * 0.085, -0.665, 0.055 * Math.abs(look), 0.095, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = HAIR; ctx.beginPath(); ctx.arc(-look * 0.02, o.front ? -0.74 : -0.7, 0.12, Math.PI, 0); ctx.fill();
+    ctx.beginPath(); ctx.arc(-look * 0.05, -0.84, 0.07, 0, Math.PI * 2); ctx.fill();               // hair bun
     ctx.restore();
     ctx.restore();
   }
@@ -321,6 +351,7 @@ export function createGardenArt(canvas) {
     else { cam.x += (wantX - cam.x) * Math.min(1, dt * CAM.ease); cam.z += (wantZ - cam.z) * Math.min(1, dt * CAM.ease * 2); }
 
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    { const q = project(p.x, 0, p.z); youX = showYou && q ? q[0] : W / 2; }
     drawSky(ink);
     drawFarBand(ink);
     drawGround(ink);
@@ -330,6 +361,7 @@ export function createGardenArt(canvas) {
     const list = [];
     for (const t of sim.garden.trees) { const q = project(t.x, 0, t.z); if (q && q[3] < 230 && q[0] > -900 && q[0] < W + 900) list.push([q[3], 'tree', t, q]); }
     for (const h of HUTS) { const q = project(h.x, 0, h.z); if (q && q[3] < 230) list.push([q[3], 'hut', h, q]); }
+    for (const f of sim.garden.fences) { const q = project(f.x, 0, f.z); if (q && q[3] < 120 && q[0] > -400 && q[0] < W + 400) list.push([q[3], 'fence', f, q]); }
     { const q = project(KAGO.x, 0, KAGO.z); if (q && q[3] < 230) list.push([q[3], 'kago', KAGO, q]); }
     for (const o of sim.people) { const q = project(o.x, 0, o.z); if (q && q[3] < 200) list.push([q[3], 'person', o, q]); }
     if (showYou) { const q = project(p.x, 0, p.z); if (q) list.push([q[3], 'you', p, q]); }
@@ -338,10 +370,11 @@ export function createGardenArt(canvas) {
       if (kind !== 'you' && fadeFor(q[3], q[0]) < 0.02) continue;
       if (kind === 'tree') drawTree(o, q, sim.wind, time);
       else if (kind === 'hut') drawHut(o, q);
+      else if (kind === 'fence') drawFence(o, q);
       else if (kind === 'kago') drawKago(q, sim.wind, time);
       else if (kind === 'person') drawPerson(q, { robe: KIMONO[o.look % KIMONO.length], obi: OBI[o.look % OBI.length], front: o.kind === 'walk' || o.look % 2 === 0,
         step: o.kind === 'walk' && o.bowT <= 0 ? time * 0.9 + o.phase : 0, bow: o.bowT > 0 ? Math.sin((o.bowT / 1.4) * Math.PI) : 0 });
-      else drawPerson(q, { robe: YOU, obi: '#e8d9b0', front: false, step: o.step, bow: o.bow, alpha: o.fade });
+      else drawPerson(q, { robe: YOU, obi: '#e8d9b0', front: false, step: o.step, bow: o.bow, alpha: o.fade, look: o.look });
     }
 
     drawPetals(sim.paused ? 0 : dt, sim.wind, showYou && p.v > 0.1 ? 1 : 0);
