@@ -9,7 +9,10 @@ import { createUI, inked, INK, MUTED } from './ui.js';
 import { BUILD } from './version.js';
 
 // ---- the camera (all of these can be tuned for feel) ----
-const CAM = { F: 440, horizon: 250, height: 3.0, back: 7, follow: 0.7, ease: 2 };
+// F = zoom (bigger = a longer lens: flatter, more layered, closer to the prints' "cheated" near-orthographic look). back = how far behind
+// you the camera floats; F / back sets your size (kept the same as v24). horizon = how far down the screen the horizon sits.
+// (v24: F 440, back 7, horizon 250, height 3: felt wide and sparse; Tom wants intimate and enclosed)
+const CAM = { F: 900, horizon: 290, height: 2.8, back: 14, follow: 0.7, ease: 2 };
 const START_INK = 25;
 const LAYERS = {
   skyTop: ['#efd9c4', '#d4604f', 8, 40],      // deep rose at the top...
@@ -132,13 +135,17 @@ export function createGardenArt(canvas) {
     // tufts of grass dotted about the garden
     const g = rng(0.31); grass = [];
     for (let i = 0; i < 420; i++) grass.push({ x: pathX(0) + (g() - 0.5) * 70, z: g() * 260, s: 0.6 + g() * 0.8 });
-    for (let i = 0; i < 90; i++) petals.push(newPetal(true));
+    for (let i = 0; i < 120; i++) petals.push(newPetal(true));
   }
   const C = (name, ink) => inked(LAYERS[name], ink);
   const project = (x, y, z) => { const dz = z - cam.z; if (dz < 0.6) return null; const s = CAM.F / dz; return [W / 2 + (x - cam.x) * s, CAM.horizon + (CAM.height - y) * s, s, dz]; };
   // far things fade into the haze, near things fade so they never fill the screen
-  // (anything closer than you fades out quickly, and is gone completely before it can fill the screen as a pale ghost)
-  const fadeFor = (dz) => clamp((dz - 3) / 2.5, 0, 1) * (1 - 0.55 * clamp((dz - 40) / 90, 0, 1));
+  // things between the camera and you: near the middle of the screen they fade out (so nothing blocks your view or turns into a
+  // pale ghost); out at the edges they stay solid and sweep past, cropped by the frame like the print's big foreground trunk
+  const fadeFor = (dz, sx = W / 2) => {
+    const edge = clamp((Math.abs(sx - W / 2) / (W / 2) - 0.3) / 0.35, 0, 1);
+    return Math.max(clamp((dz - 6) / 4, 0, 1), edge * clamp((dz - 1.5) / 1.5, 0, 1)) * (1 - 0.5 * clamp((dz - 70) / 150, 0, 1));
+  };
 
   // ---------- backdrop ----------
   function drawSky(ink) {
@@ -167,7 +174,7 @@ export function createGardenArt(canvas) {
     ctx.strokeStyle = 'rgba(40,90,70,0.35)'; ctx.lineWidth = 1;
     ctx.beginPath();
     for (const t of grass) {
-      const p = project(t.x, 0, t.z); if (!p || p[3] > 60) continue;
+      const p = project(t.x, 0, t.z); if (!p || p[3] > 90) continue;
       const h = 0.25 * t.s * p[2];
       ctx.moveTo(p[0] - h * 0.5, p[1]); ctx.lineTo(p[0] - h * 0.2, p[1] - h); ctx.moveTo(p[0], p[1]); ctx.lineTo(p[0] + h * 0.1, p[1] - h * 1.2); ctx.moveTo(p[0] + h * 0.5, p[1]); ctx.lineTo(p[0] + h * 0.3, p[1] - h);
     }
@@ -177,8 +184,8 @@ export function createGardenArt(canvas) {
     // long soft tree shadows lying across the grass, as in the print
     ctx.fillStyle = C('shadow', ink);
     for (const t of sim.garden.trees) {
-      const p = project(t.x - 1.4, 0, t.z - 0.3); if (!p || p[3] > 110 || p[3] < 2) continue;
-      ctx.globalAlpha = 0.45 * fadeFor(p[3]);
+      const p = project(t.x - 1.4, 0, t.z - 0.3); if (!p || p[3] > 170 || p[3] < 2) continue;
+      ctx.globalAlpha = 0.45 * fadeFor(p[3], p[0]);
       ctx.beginPath(); ctx.ellipse(p[0], p[1], 2.6 * p[2], 0.32 * p[2], 0, 0, Math.PI * 2); ctx.fill();
     }
     ctx.globalAlpha = 1;
@@ -187,7 +194,7 @@ export function createGardenArt(canvas) {
   // ---------- cut-outs ----------
   function drawTree(t, p, wind, time) {
     const sp = trees[t.kind], s = p[2], w = sp.w * s, h = sp.h * s;
-    ctx.save(); ctx.globalAlpha = fadeFor(p[3]);
+    ctx.save(); ctx.globalAlpha = fadeFor(p[3], p[0]);
     // the crown sways with the breeze; the trunk stays put (a shear about the base)
     const sway = (Math.sin(time * 1.1 + t.seed) * 0.5 + Math.sin(time * 2.3 + t.seed * 2) * 0.2) * wind * 0.045;
     ctx.setTransform(scale, 0, sway * scale, scale, (p[0] - sway * p[1]) * scale, 0);
@@ -197,14 +204,14 @@ export function createGardenArt(canvas) {
   }
   function drawHut(hut, p) {
     const sp = hut.double ? huts.double : huts.single, s = p[2];
-    ctx.save(); ctx.globalAlpha = fadeFor(p[3]);
+    ctx.save(); ctx.globalAlpha = fadeFor(p[3], p[0]);
     ctx.drawImage(sp.c, p[0] - (sp.w * s) / 2, p[1] - sp.h * s, sp.w * s, sp.h * s);
     ctx.restore();
   }
   function drawKago(p, wind, time) {
     // the parked palanquin: a long carrying pole on green stands, the basket seat with its patterned blue cushion, a green cloth over the pole
     const s = p[2];
-    ctx.save(); ctx.globalAlpha = fadeFor(p[3]); ctx.translate(p[0], p[1]); ctx.scale(s, s);
+    ctx.save(); ctx.globalAlpha = fadeFor(p[3], p[0]); ctx.translate(p[0], p[1]); ctx.scale(s, s);
     const swing = Math.sin(time * 1.3) * 0.03 * wind;
     ctx.lineCap = 'round';
     ctx.strokeStyle = '#2f7a5b'; ctx.lineWidth = 0.13;                                              // stands
@@ -230,7 +237,7 @@ export function createGardenArt(canvas) {
   function drawPerson(p, o) {
     // a figure in kimono, about 1.6 tall; front: facing you, else seen from behind
     const s = p[2];
-    ctx.save(); ctx.globalAlpha = (o.alpha ?? 1) * fadeFor(p[3]);
+    ctx.save(); ctx.globalAlpha = (o.alpha ?? 1) * fadeFor(p[3], p[0]);
     ctx.translate(p[0], p[1]); ctx.scale(s, s);
     ctx.fillStyle = 'rgba(30,60,45,0.22)'; ctx.beginPath(); ctx.ellipse(0, 0, 0.35, 0.08, 0, 0, Math.PI * 2); ctx.fill();
     const bob = Math.abs(Math.sin(o.step * Math.PI)) * 0.03, sway = Math.sin(o.step * Math.PI) * 0.03;
@@ -251,7 +258,7 @@ export function createGardenArt(canvas) {
 
   // ---------- petals on the breeze (drawn over the scene, in three depths) ----------
   function newPetal(anywhere) {
-    const depth = 0.4 + Math.random();
+    const depth = Math.random() < 0.12 ? 1.6 + Math.random() * 0.8 : 0.4 + Math.random();      // a few drift right past the camera, big and close
     return { x: anywhere ? Math.random() * 1500 : -20 - Math.random() * 200, y: anywhere ? Math.random() * VH : Math.random() * VH * 0.8 - 40,
       depth, rot: Math.random() * 6, spin: (Math.random() - 0.5) * 4, ph: Math.random() * 6, pink: Math.random() < 0.3 };
   }
@@ -321,14 +328,14 @@ export function createGardenArt(canvas) {
 
     // everything standing in the garden, far to near
     const list = [];
-    for (const t of sim.garden.trees) { const q = project(t.x, 0, t.z); if (q && q[3] < 150 && q[0] > -600 && q[0] < W + 600) list.push([q[3], 'tree', t, q]); }
-    for (const h of HUTS) { const q = project(h.x, 0, h.z); if (q && q[3] < 150) list.push([q[3], 'hut', h, q]); }
-    { const q = project(KAGO.x, 0, KAGO.z); if (q && q[3] < 150) list.push([q[3], 'kago', KAGO, q]); }
-    for (const o of sim.people) { const q = project(o.x, 0, o.z); if (q && q[3] < 120) list.push([q[3], 'person', o, q]); }
+    for (const t of sim.garden.trees) { const q = project(t.x, 0, t.z); if (q && q[3] < 230 && q[0] > -900 && q[0] < W + 900) list.push([q[3], 'tree', t, q]); }
+    for (const h of HUTS) { const q = project(h.x, 0, h.z); if (q && q[3] < 230) list.push([q[3], 'hut', h, q]); }
+    { const q = project(KAGO.x, 0, KAGO.z); if (q && q[3] < 230) list.push([q[3], 'kago', KAGO, q]); }
+    for (const o of sim.people) { const q = project(o.x, 0, o.z); if (q && q[3] < 200) list.push([q[3], 'person', o, q]); }
     if (showYou) { const q = project(p.x, 0, p.z); if (q) list.push([q[3], 'you', p, q]); }
     list.sort((a, b) => b[0] - a[0]);
     for (const [, kind, o, q] of list) {
-      if (kind !== 'you' && fadeFor(q[3]) < 0.02) continue;
+      if (kind !== 'you' && fadeFor(q[3], q[0]) < 0.02) continue;
       if (kind === 'tree') drawTree(o, q, sim.wind, time);
       else if (kind === 'hut') drawHut(o, q);
       else if (kind === 'kago') drawKago(q, sim.wind, time);
