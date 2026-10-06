@@ -32,8 +32,11 @@ export const BTUNE = {
   puddles: 7,
 };
 
-export const BRIDGE_PAUSE_ROWS = ['resume', 'album', 'steer', 'sens', 'sound', 'recentre', 'restart'];
+export const BRIDGE_PAUSE_ROWS = ['resume', 'album', 'crowd', 'steer', 'sens', 'sound', 'recentre', 'restart'];
 export const BRIDGE_STEER_OPTS = ['FINGER', 'TILT PHONE', 'TILT (FLIPPED)'];
+// how busy the bridge is (Tom asked for a more crowded option): people set out this much more often. There is still always a gap.
+export const CROWD_OPTS = ['LIGHT', 'BUSY', 'PACKED'];
+export const CROWD_RATE = [1, 1.7, 2.6];
 export const KINDS = ['hat', 'hat', 'hat', 'umbrella', 'umbrella', 'pair'];
 
 function mulberry32(a) {
@@ -44,7 +47,7 @@ export class Bridge {
   constructor({ width = 1300, seed = Date.now() } = {}) {
     this.W = clamp(Math.round(width), MIN_W, MAX_W);
     this.rand = mulberry32(seed);
-    this.settings = { steer: 0, sens: 1, sound: true };     // finger by default (Tom); saved by the page
+    this.settings = { steer: 0, sens: 1, sound: true, crowd: 0 };     // finger by default (Tom); saved by the page
     this.onSettings = null;
     this.paused = false; this.pauseRow = 0; this.restartArmed = false;
     this.recentreRequest = false; this.albumRequest = false;
@@ -55,6 +58,7 @@ export class Bridge {
   setWidth(w) { if (Number.isFinite(w)) this.W = clamp(Math.round(w), MIN_W, MAX_W); }
   get tiltSteer() { return this.settings.steer > 0; }
   get tiltFlip() { return this.settings.steer === 2; }
+  get crowdRate() { return CROWD_RATE[this.settings.crowd || 0] || 1; }
   changed() { if (this.onSettings) this.onSettings(this.settings); }
 
   reset() {
@@ -65,7 +69,7 @@ export class Bridge {
     this.puddles = [];
     for (let i = 0; i < BTUNE.puddles; i++) this.puddles.push(this.newPuddle(0.12, 0.5 + this.rand() * 0.5));
     // the crowd is already on the bridge
-    for (let s = 0.32; s < 1; s += 0.12 + this.rand() * 0.08) this.spawnWalker(s);
+    for (let s = 0.32; s < 1; s += (0.12 + this.rand() * 0.08) / this.crowdRate) this.spawnWalker(s);
     this.rain = 0.7; this.gusts = [];
     this.ink = 0; this.inkShown = 0;
     this.events = [];
@@ -94,6 +98,7 @@ export class Bridge {
     const row = BRIDGE_PAUSE_ROWS[this.pauseRow], s = this.settings;
     if (row === 'resume') this.resumeGame();
     else if (row === 'album') { this.albumRequest = true; return; }
+    else if (row === 'crowd') s.crowd = ((s.crowd || 0) + d + CROWD_OPTS.length) % CROWD_OPTS.length;
     else if (row === 'steer') s.steer = (s.steer + d + BRIDGE_STEER_OPTS.length) % BRIDGE_STEER_OPTS.length;
     else if (row === 'sens') s.sens = (s.sens + d + SENS_OPTS.length) % SENS_OPTS.length;
     else if (row === 'sound') s.sound = !s.sound;
@@ -110,7 +115,7 @@ export class Bridge {
     if (BRIDGE_PAUSE_ROWS[idx] !== 'restart') this.restartArmed = false;
     this.pauseRow = idx;
     const row = BRIDGE_PAUSE_ROWS[idx];
-    this.pauseChange(row === 'steer' || row === 'sens' ? (x < this.W / 2 ? -1 : 1) : 1);
+    this.pauseChange(row === 'steer' || row === 'sens' || row === 'crowd' ? (x < this.W / 2 ? -1 : 1) : 1);
     this.say('blip');
   }
 
@@ -196,7 +201,7 @@ export class Bridge {
     }
     this.walkers = this.walkers.filter((w) => w.s > -0.06);
     this.nextSpawn -= dt;
-    if (this.nextSpawn <= 0) { this.spawnWalker(1.04); this.nextSpawn = T.spawnGap[0] + this.rand() * (T.spawnGap[1] - T.spawnGap[0]); }
+    if (this.nextSpawn <= 0) { this.spawnWalker(1.04); this.nextSpawn = (T.spawnGap[0] + this.rand() * (T.spawnGap[1] - T.spawnGap[0])) / this.crowdRate; }
 
     // ---- puddles fill while it pours and shrink when it eases; a dried one forms again somewhere else ----
     for (let i = 0; i < this.puddles.length; i++) {
@@ -218,10 +223,12 @@ export class Bridge {
     const kind = KINDS[Math.floor(this.rand() * KINDS.length)];
     const bodyD = kind === 'pair' ? T.bodyD * 1.6 : T.bodyD;
     // never a wall: beside anyone setting out at about the same time there is always room to slip through, with some to spare
+    // (busier crowds walk in closer rows; each row still has its gap)
+    const row = 0.12 / this.crowdRate ** 0.75;
     let d = -1;
     for (let k = 0; k < 14 && d < 0; k++) {
       const c = this.rand() < 0.35 ? clamp(p.d + (this.rand() - 0.5) * 0.3, 0.06, 0.94) : 0.06 + this.rand() * 0.88;
-      if (this.walkers.every((o) => Math.abs(o.s - s) > 0.12 || Math.abs(o.d - c) > o.bodyD + bodyD + 0.14)) d = c;
+      if (this.walkers.every((o) => Math.abs(o.s - s) > row || Math.abs(o.d - c) > o.bodyD + bodyD + 0.14)) d = c;
     }
     if (d < 0) return;                     // no room just now: nobody sets out this time
     const v = T.crowdSpeed[0] + this.rand() * (T.crowdSpeed[1] - T.crowdSpeed[0]);

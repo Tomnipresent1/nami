@@ -121,8 +121,8 @@ function plip(freq, vol, delay = 0) {
 export const bridgeSfx = {
   step() { knock(130 + Math.random() * 25, 0.05); },
   splash() {                                                                        // a soft slosh, then a couple of little drips
-    noise(0.35, 0.12, 1400, 320);
-    plip(1300 + Math.random() * 300, 0.04, 0.12); plip(950 + Math.random() * 250, 0.03, 0.26);
+    noise(0.35, 0.17, 1600, 340);                                                   // (Tom: a little louder)
+    plip(1300 + Math.random() * 300, 0.055, 0.12); plip(950 + Math.random() * 250, 0.045, 0.26);
   },
   bump() { bell(880, 0.09); bell(1318.5, 0.05, 0.32); },                            // a gentle temple-bell ding as you both bow
   pass() { if (!ac) return; const now = ac.currentTime; if (now - lastPluck < 0.8) return; lastPluck = now; pluck(SCALE[Math.floor(Math.random() * 7)], 0.06, 0, 1.8); },
