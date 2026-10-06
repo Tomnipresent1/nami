@@ -20,10 +20,8 @@ export const figScale = (s, d) => (1 - 0.32 * s) * (1 - 0.1 * d);
 export const BTUNE = {
   crossSecs: 80,            // one crossing at a steady walk
   acrossSpeed: 0.8,         // deck widths per second, at most, with tilt or keys (gentle)
-  fingerSpeed: 2.2,         // with a finger you move as your finger moves, up to this fast
-  fingerFollow: 14,         // how tightly you follow the finger's movement
-  aimLead: 0.06,          // how far ahead of you the finger can get (small = reversing answers at once)
-  dragGain: 1.0,            // finger travel -> steps across: 1.0 = sliding the deck's own height on screen crosses all of it
+  fingerFollow: 14,         // how tightly you follow the finger's movement (speeds: FINGER_GAIN / FINGER_SPEED below)
+  aimLead: 0.06,            // how far ahead of you the finger can get (small = reversing answers at once)
   crowdSpeed: [0.0122, 0.0128],   // nearly one pace for everyone, so nobody catches anyone up and closes a gap
   spawnGap: [3.2, 5.6],     // seconds between people setting out from the far end
   bodyS: 0.016,             // how close (along) counts as bumping (Tom: tightened, it felt wide)
@@ -35,11 +33,16 @@ export const BTUNE = {
   puddles: 7,
 };
 
-export const BRIDGE_PAUSE_ROWS = ['resume', 'album', 'crowd', 'steer', 'sens', 'sound', 'recentre', 'restart'];
+export const BRIDGE_PAUSE_ROWS = ['resume', 'album', 'crowd', 'steer', 'finger', 'sens', 'sound', 'recentre', 'restart'];
 export const BRIDGE_STEER_OPTS = ['FINGER', 'TILT PHONE', 'TILT (FLIPPED)'];
 // how busy the bridge is (Tom asked for a more crowded option): people set out this much more often. There is still always a gap.
 export const CROWD_OPTS = ['LIGHT', 'BUSY', 'PACKED'];
 export const CROWD_RATE = [1, 1.7, 2.6];
+// finger speed (Tom: the feel has to be just right, so it is his choice). Each step sets how far one slide moves you
+// (gain 1.0 = sliding the deck's own height on screen crosses all of it) and your top speed (deck widths per second).
+export const FINGER_OPTS = ['SLOW', 'MEDIUM', 'FAST'];
+export const FINGER_GAIN = [0.6, 0.8, 1.0];
+export const FINGER_SPEED = [1.0, 1.5, 2.2];       // FAST = v20
 export const KINDS = ['hat', 'hat', 'hat', 'umbrella', 'umbrella', 'pair'];
 
 function mulberry32(a) {
@@ -50,7 +53,7 @@ export class Bridge {
   constructor({ width = 1300, seed = Date.now() } = {}) {
     this.W = clamp(Math.round(width), MIN_W, MAX_W);
     this.rand = mulberry32(seed);
-    this.settings = { steer: 0, sens: 1, sound: true, crowd: 0 };     // finger by default (Tom); saved by the page
+    this.settings = { steer: 0, sens: 1, sound: true, crowd: 0, finger: 1 };     // finger by default (Tom); saved by the page
     this.onSettings = null;
     this.paused = false; this.pauseRow = 0; this.restartArmed = false;
     this.recentreRequest = false; this.albumRequest = false;
@@ -103,6 +106,7 @@ export class Bridge {
     if (row === 'resume') this.resumeGame();
     else if (row === 'album') { this.albumRequest = true; return; }
     else if (row === 'crowd') s.crowd = ((s.crowd || 0) + d + CROWD_OPTS.length) % CROWD_OPTS.length;
+    else if (row === 'finger') s.finger = ((s.finger ?? 1) + d + FINGER_OPTS.length) % FINGER_OPTS.length;
     else if (row === 'steer') s.steer = (s.steer + d + BRIDGE_STEER_OPTS.length) % BRIDGE_STEER_OPTS.length;
     else if (row === 'sens') s.sens = (s.sens + d + SENS_OPTS.length) % SENS_OPTS.length;
     else if (row === 'sound') s.sound = !s.sound;
@@ -119,7 +123,7 @@ export class Bridge {
     if (BRIDGE_PAUSE_ROWS[idx] !== 'restart') this.restartArmed = false;
     this.pauseRow = idx;
     const row = BRIDGE_PAUSE_ROWS[idx];
-    this.pauseChange(row === 'steer' || row === 'sens' || row === 'crowd' ? (x < this.W / 2 ? -1 : 1) : 1);
+    this.pauseChange(row === 'steer' || row === 'sens' || row === 'crowd' || row === 'finger' ? (x < this.W / 2 ? -1 : 1) : 1);
     this.say('blip');
   }
 
@@ -171,13 +175,14 @@ export class Bridge {
       // carried on the old way after he reversed.)
       let want, ease = 10;
       if (inp.fingerY != null) {
-        const perD = 0.8 * deckDepth(p.s * this.W, this.W) / T.dragGain;     // picture units of finger travel per deck width
+        const f = this.settings.finger ?? 1;
+        const perD = 0.8 * deckDepth(p.s * this.W, this.W) / FINGER_GAIN[f];  // picture units of finger travel per deck width
         if (!this.drag || this.drag.id !== inp.touchId) this.drag = { y: inp.fingerY, aim: p.d, id: inp.touchId };   // a new touch starts afresh
         this.drag.aim += (this.drag.y - inp.fingerY) / perD;
         this.drag.y = inp.fingerY;
         // the aim never runs off past a rail or far ahead of you, so a change of direction always answers at once
         this.drag.aim = clamp(clamp(this.drag.aim, 0, 1), p.d - T.aimLead, p.d + T.aimLead);
-        want = clamp((this.drag.aim - p.d) * T.fingerFollow, -1, 1) * T.fingerSpeed;
+        want = clamp((this.drag.aim - p.d) * T.fingerFollow, -1, 1) * FINGER_SPEED[f];
         ease = 25;
       } else {
         this.drag = null;

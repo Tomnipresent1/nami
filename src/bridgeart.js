@@ -2,7 +2,7 @@
 // poling slowly by, the great wooden bridge rising from the lower left on its dark legs, the crowd hunched under hats and umbrellas,
 // and fine rain falling in two sets of lines at slightly different angles. Drawn live in code; this file only draws.
 import { VH, clamp } from './ocean.js';
-import { deckFront, deckDepth, deckPoint, figScale, BRIDGE_PAUSE_ROWS, BRIDGE_STEER_OPTS, CROWD_OPTS } from './bridge.js';
+import { deckFront, deckDepth, deckPoint, figScale, BRIDGE_PAUSE_ROWS, BRIDGE_STEER_OPTS, CROWD_OPTS, FINGER_OPTS } from './bridge.js';
 import { createUI, inked, INK, SEAL, MUTED } from './ui.js';
 import { BUILD } from './version.js';
 
@@ -240,7 +240,7 @@ export function createBridgeArt(canvas) {
   function drawPause(sim, uiState) {
     const s = sim.settings;
     const rows = BRIDGE_PAUSE_ROWS.map((id) => ({
-      resume: [id, '', 'RESUME'], album: [id, '', 'BACK TO THE ALBUM'], crowd: [id, 'CROWD', CROWD_OPTS[s.crowd || 0]], steer: [id, 'STEERING', BRIDGE_STEER_OPTS[s.steer]], sens: [id, 'TILT AMOUNT', ui.sensLabel(s.sens)],
+      resume: [id, '', 'RESUME'], album: [id, '', 'BACK TO THE ALBUM'], crowd: [id, 'CROWD', CROWD_OPTS[s.crowd || 0]], finger: [id, 'FINGER SPEED', FINGER_OPTS[s.finger ?? 1]], steer: [id, 'STEERING', BRIDGE_STEER_OPTS[s.steer]], sens: [id, 'TILT AMOUNT', ui.sensLabel(s.sens)],
       sound: [id, 'SOUND', s.sound ? 'ON' : 'OFF'], recentre: [id, '', 'SET TILT STRAIGHT AHEAD'], restart: [id, '', sim.restartArmed ? 'TAP AGAIN TO START THE PRINT OVER' : 'START THE PRINT OVER'],
     })[id]);
     const tilt = uiState && uiState.tilt;
