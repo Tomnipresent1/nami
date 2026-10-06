@@ -54,17 +54,35 @@ export function setupInput({ onPause, canvas, onTap } = {}) {
 
   // ---- touch / mouse: a tap, and a finger slide that steers when tilt isn't in use ----
   input.touch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
-  let id = null, ox = 0, moved = 0;
+  // Every finger on the screen is tracked; the NEWEST one steers. (A gripping thumb resting on the screen used to grab the steering
+  // and leave the real steering finger ignored.) When the steering finger lifts, another finger still down takes over as a fresh touch.
+  const fingers = new Map();               // pointerId -> { x, y }
+  let id = null, ox = 0;
   const RANGE = 90;
+  const steerWith = (pid) => {
+    id = pid; slide = 0;
+    if (pid === null) { input.held = false; return; }
+    const f = fingers.get(pid); ox = f.x; input.held = true; input.py = f.y; input.touches++;
+  };
   canvas.addEventListener('pointerdown', (e) => {
     pressed = true; onTap && onTap(e);
-    if (id !== null) return;
-    id = e.pointerId; ox = e.clientX; moved = 0; slide = 0; input.held = true; input.py = e.clientY; input.touches++;
+    fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    steerWith(e.pointerId);
     try { canvas.setPointerCapture(e.pointerId); } catch {}
   });
-  canvas.addEventListener('pointermove', (e) => { if (e.pointerId !== id) return; const dx = e.clientX - ox; moved = Math.max(moved, Math.abs(dx)); slide = clamp(dx / RANGE, -1, 1); input.py = e.clientY; });
-  const up = (e) => { if (e.pointerId === id) { id = null; slide = 0; input.held = false; } };
+  canvas.addEventListener('pointermove', (e) => {
+    const f = fingers.get(e.pointerId); if (!f) return;
+    f.x = e.clientX; f.y = e.clientY;
+    if (e.pointerId !== id) return;
+    slide = clamp((e.clientX - ox) / RANGE, -1, 1); input.py = e.clientY;
+  });
+  const up = (e) => {
+    if (!fingers.delete(e.pointerId) || e.pointerId !== id) return;
+    const rest = [...fingers.keys()];
+    steerWith(rest.length ? rest[rest.length - 1] : null);
+  };
   canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
+  canvas.addEventListener('lostpointercapture', up);
 }
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 const down = (list) => list.some((c) => held.has(c));
