@@ -23,8 +23,8 @@ export const BTUNE = {
   follow: 6,                // how keenly you head for your finger
   crowdSpeed: [0.0122, 0.0128],   // nearly one pace for everyone, so nobody catches anyone up and closes a gap
   spawnGap: [3.2, 5.6],     // seconds between people setting out from the far end
-  bodyS: 0.022,             // how close (along) counts as bumping
-  bodyD: 0.15,              // ... and across (a pair under one mat is wider)
+  bodyS: 0.016,             // how close (along) counts as bumping (Tom: tightened, it felt wide)
+  bodyD: 0.11,              // ... and across (a pair under one mat is wider)
   bumpStop: 1.4,            // seconds you both stop to bow
   splashSlow: 0.45, splashSecs: 0.8,
   inkPass: 1.6,             // ink for each person passed without bumping

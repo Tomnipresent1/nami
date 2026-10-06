@@ -20,6 +20,7 @@ const FUJI_DRIFT = 0.3;
 // Parallax for a 2.5-D sky: the HIGH clouds are nearest (they pass overhead) so they move fastest; the low clouds sit near the horizon,
 // farther away, so they move slower; the mountain is farthest and slowest. Fractions of the boat's travel: [high, middle, low].
 const CLOUD_DRIFT = [0.9, 0.65, 0.45];
+const CLOUD_ALPHA = 0.42;        // how solid the clouds are (1 = solid; lower = softer, less conspicuous)
 const ROW_RATE = 3;              // rowing stroke speed (radians of the stroke cycle per second): calm, the same uphill and down
 const SHOW_FOAM_PILE = false;
 const SHOW_WARNING = false;
@@ -30,7 +31,7 @@ const START_INK = 25;          // how much colour the print already has when pla
 const LAYERS = {
   sky: [PAPER, '#e7d1a0', 14, 34],              // the top of the sky: the print's warm buff...
   skyLow: [PAPER, '#f1eadb', 14, 34],           // ...fading to a paler, cooler cream toward the horizon (Tom: like the print, minus its dark band)
-  cloud: [PAPER, '#b9c6c8', 20, 40],
+  cloud: [PAPER, '#ece7da', 20, 40],            // pale cream-white, like the print's soft clouds (was a blue-grey)
   fuji: ['#e4dcc2', '#6f8fb5', 28, 48],
   farSea: ['#dfe3d6', '#4f7fb2', 6, 30],
   sea: ['#cfdde2', '#2f5f9b', 6, 44],
@@ -92,7 +93,9 @@ export function createArt(canvas) {
         ctx.moveTo(x0, y);
         for (let i = 0; i <= 6; i++) ctx.quadraticCurveTo(x0 + i * 110 + 55, y - h * (i % 2 ? 0.8 : 1.1), x0 + (i + 1) * 110, y);
         ctx.lineTo(x0 + 770, y + h * 0.5); ctx.quadraticCurveTo(x0 + 400, y + h * 1.4, x0, y + h * 0.5); ctx.closePath();
-        ctx.fill(); outline(1.4, 0.35);
+        // soft and quiet, like the print's clouds: no outline, see-through, with a fainter halo so the edge melts away (Tom)
+        ctx.save(); ctx.globalAlpha = CLOUD_ALPHA * 0.45; ctx.lineWidth = 16; ctx.lineJoin = 'round'; ctx.strokeStyle = cc; ctx.stroke(); ctx.restore();
+        ctx.globalAlpha = CLOUD_ALPHA; ctx.fill(); ctx.globalAlpha = 1;
       }
     }
   }

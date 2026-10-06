@@ -97,11 +97,34 @@ function knock(freq, vol) {
   noise(0.06, vol * 0.4, 1800, 500);
 }
 
+// a small bell: a few out-of-tune partials (that is what makes metal sound like metal), ringing out slowly
+function bell(freq, vol, delay = 0) {
+  if (!ac) return;
+  const t = ac.currentTime + delay;
+  for (const [ratio, v, len] of [[1, 1, 2.6], [2.76, 0.35, 1.4], [5.4, 0.12, 0.7]]) {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sine'; o.frequency.value = freq * ratio;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol * v, t + 0.005); g.gain.exponentialRampToValueAtTime(0.0003, t + len);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + len + 0.05);
+  }
+}
+// a water drip: a quick falling blip
+function plip(freq, vol, delay = 0) {
+  if (!ac) return;
+  const t = ac.currentTime + delay, o = ac.createOscillator(), g = ac.createGain();
+  o.type = 'sine'; o.frequency.setValueAtTime(freq, t); o.frequency.exponentialRampToValueAtTime(freq * 1.8, t + 0.05);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.005); g.gain.exponentialRampToValueAtTime(0.0003, t + 0.09);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.12);
+}
+
 /** Sudden Shower's sounds. */
 export const bridgeSfx = {
   step() { knock(130 + Math.random() * 25, 0.05); },
-  splash() { noise(0.45, 0.08, 4200, 900); },
-  bump() { pluck(196, 0.08, 0, 1.6); pluck(146.83, 0.07, 0.25, 2.0); },           // a polite little bow, two low notes
+  splash() {                                                                        // a soft slosh, then a couple of little drips
+    noise(0.35, 0.12, 1400, 320);
+    plip(1300 + Math.random() * 300, 0.04, 0.12); plip(950 + Math.random() * 250, 0.03, 0.26);
+  },
+  bump() { bell(880, 0.09); bell(1318.5, 0.05, 0.32); },                            // a gentle temple-bell ding as you both bow
   pass() { if (!ac) return; const now = ac.currentTime; if (now - lastPluck < 0.8) return; lastPluck = now; pluck(SCALE[Math.floor(Math.random() * 7)], 0.06, 0, 1.8); },
   crossed() { [0, 2, 4, 6, 8].forEach((i, k) => pluck(SCALE[i], 0.12, k * 0.13, 2.2)); },
   ink(level) { sfx.ink(level); },
