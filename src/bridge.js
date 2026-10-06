@@ -19,9 +19,11 @@ export const figScale = (s, d) => (1 - 0.32 * s) * (1 - 0.1 * d);
 
 export const BTUNE = {
   crossSecs: 80,            // one crossing at a steady walk
-  acrossSpeed: 0.8,         // deck widths per second, at most (gentle)
-  follow: 5,                // how keenly you follow your finger
-  dragGain: 1.4,            // finger travel -> steps across: 1.4 = a slide a bit shorter than the deck crosses all of it
+  acrossSpeed: 0.8,         // deck widths per second, at most, with tilt or keys (gentle)
+  fingerSpeed: 2.2,         // with a finger you move as your finger moves, up to this fast
+  fingerFollow: 14,         // how tightly you follow the finger's movement
+  aimLead: 0.06,          // how far ahead of you the finger can get (small = reversing answers at once)
+  dragGain: 1.0,            // finger travel -> steps across: 1.0 = sliding the deck's own height on screen crosses all of it
   crowdSpeed: [0.0122, 0.0128],   // nearly one pace for everyone, so nobody catches anyone up and closes a gap
   spawnGap: [3.2, 5.6],     // seconds between people setting out from the far end
   bodyS: 0.016,             // how close (along) counts as bumping (Tom: tightened, it felt wide)
@@ -163,22 +165,26 @@ export class Bridge {
         p.step += dt * 1.9;
         if (Math.floor(p.step) !== Math.floor(p.step - dt * 1.9) && scoring) this.say('step');
       }
-      // the finger is a trackpad: putting it down does nothing; sliding it up or down moves you that far from where you already are
-      // (Tom: heading for the finger's spot made you jump whenever a thumb landed low on the screen)
-      let want;
+      // the finger is a trackpad that you steer with directly: you move with the finger's MOVEMENT, at once. Putting a finger down does
+      // nothing (no jump); slide down and you step down; reverse mid-slide and you reverse straight away; stop and you stop.
+      // (Tom: heading for the finger's spot jumped when a thumb landed low; then a slow walker lagged behind a quick finger and
+      // carried on the old way after he reversed.)
+      let want, ease = 10;
       if (inp.fingerY != null) {
         const perD = 0.8 * deckDepth(p.s * this.W, this.W) / T.dragGain;     // picture units of finger travel per deck width
-        if (!this.drag || this.drag.id !== inp.touchId) this.drag = { y: inp.fingerY, d: p.d, id: inp.touchId };   // a new touch starts afresh
-        let target = this.drag.d + (this.drag.y - inp.fingerY) / perD;
-        // at a rail, move the anchor along with the finger, so sliding back responds at once
-        if (target > 1 || target < 0) { const edge = target > 1 ? 1 : 0; this.drag.y += (target - edge) * perD; target = edge; }
-        want = clamp((target - p.d) * T.follow, -1, 1) * T.acrossSpeed;
+        if (!this.drag || this.drag.id !== inp.touchId) this.drag = { y: inp.fingerY, aim: p.d, id: inp.touchId };   // a new touch starts afresh
+        this.drag.aim += (this.drag.y - inp.fingerY) / perD;
+        this.drag.y = inp.fingerY;
+        // the aim never runs off past a rail or far ahead of you, so a change of direction always answers at once
+        this.drag.aim = clamp(clamp(this.drag.aim, 0, 1), p.d - T.aimLead, p.d + T.aimLead);
+        want = clamp((this.drag.aim - p.d) * T.fingerFollow, -1, 1) * T.fingerSpeed;
+        ease = 25;
       } else {
         this.drag = null;
         want = clamp(inp.across || 0, -1, 1) * T.acrossSpeed;
       }
       if (p.stopT > 0) want = 0;
-      p.vd += (want - p.vd) * Math.min(1, dt * 10);
+      p.vd += (want - p.vd) * Math.min(1, dt * ease);
       p.d = clamp(p.d + p.vd * dt, 0, 1);
       if (p.d === 0 || p.d === 1) p.vd = 0;
 
