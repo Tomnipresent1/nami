@@ -2,7 +2,7 @@
 // poling slowly by, the great wooden bridge rising from the lower left on its dark legs, the crowd hunched under hats and umbrellas,
 // and fine rain falling in two sets of lines at slightly different angles. Drawn live in code; this file only draws.
 import { VH, clamp } from './ocean.js';
-import { deckFront, deckDepth, deckPoint, figScale, BRIDGE_PAUSE_ROWS, BRIDGE_STEER_OPTS, CROWD_OPTS, FINGER_OPTS } from './bridge.js';
+import { deckFront, deckDepth, deckPoint, figScale, BRIDGE_PAUSE_ROWS, BRIDGE_STEER_OPTS, CROWD_OPTS, FINGER_OPTS, CROSS_CHOICES, CHOICE_WAIT, crossChoiceBox } from './bridge.js';
 import { createUI, inked, INK, SEAL, MUTED } from './ui.js';
 import { BUILD } from './version.js';
 
@@ -204,7 +204,8 @@ export function createBridgeArt(canvas) {
     }
     if (sim.state !== 'title') {
       const p = sim.player, [x, y] = deckPoint(p.s, p.d, W);
-      list.push({ x, y, sc: figScale(p.s, p.d) * 1.08, o: { kind: 'hat', facing: 1, step: p.stopT > 0 ? 0 : p.step, bow: p.bow, robe: YOU, sash: '#e8d9b0', alpha: p.enterT } });
+      list.push({ x, y, sc: figScale(p.s, p.d) * 1.08, o: { kind: 'hat', facing: 1, step: p.stopT > 0 ? 0 : p.step, bow: p.bow, robe: YOU, sash: '#e8d9b0',
+        alpha: sim.state === 'crossed' ? clamp(1 - sim.crossedT / 1.2, 0, 1) : p.enterT } });   // you fade away at the far bank
     }
     list.sort((a, b) => a.y - b.y);
     for (const f of list) drawFigure(f.x, f.y, f.sc, f.o);
@@ -247,6 +248,22 @@ export function createBridgeArt(canvas) {
     const footer = !sim.tiltSteer ? ['SLIDE YOUR FINGER UP AND DOWN TO STEP ASIDE', MUTED]
       : tilt && tilt.ok ? ['TILT LIVE: ROCK THE PHONE TO STEP ASIDE', '#2a6a3a'] : ['NO TILT SENSOR - YOUR FINGER STILL WORKS', SEAL];
     ui.pauseMenu(rows, { W, sel: sim.pauseRow, armed: sim.restartArmed, build: BUILD, footer });
+  }
+  function drawCrossed(sim) {
+    const a = clamp(sim.crossedT / 0.7, 0, 1);
+    ctx.globalAlpha = a * 0.55; ctx.fillStyle = '#efe4c6'; ctx.fillRect(0, 0, W, VH);
+    ctx.globalAlpha = a;
+    ui.text('THE FAR BANK', W / 2, 205, 44, INK, 'center', 'bold');
+    ui.text(sim.stats.crossings === 1 ? 'YOU HAVE CROSSED THE BRIDGE' : 'CROSSING ' + sim.stats.crossings + ' COMPLETE', W / 2, 258, 20, MUTED, 'center');
+    const ready = sim.crossedT >= CHOICE_WAIT;
+    CROSS_CHOICES.forEach((label, i) => {
+      const [cx, cy, w, h] = crossChoiceBox(i, W), sel = sim.crossChoice === i;
+      ctx.globalAlpha = a * (ready ? 1 : 0.5);
+      ctx.fillStyle = sel ? 'rgba(22,33,59,0.12)' : 'rgba(239,228,198,0.75)'; ui.roundRect(cx - w / 2, cy - h / 2, w, h, 10); ctx.fill();
+      ctx.strokeStyle = INK; ctx.lineWidth = sel ? 2.4 : 1.4; ctx.stroke();
+      ui.text(label, cx, cy, 22, INK, 'center', i === 0 ? 'bold' : '');
+    });
+    ctx.globalAlpha = 1;
   }
   function drawComplete(sim) {
     ctx.globalAlpha = clamp(sim.completeT / 2, 0, 1);
@@ -296,7 +313,7 @@ export function createBridgeArt(canvas) {
     ctx.fillStyle = '#5d6466'; ctx.globalAlpha = 0.04 + 0.07 * sim.rain; ctx.fillRect(0, 0, W, VH); ctx.globalAlpha = 1;   // the shower greys everything a little
     ui.paperGrain(W);
     if (uiState.bare) return;
-    if (sim.state !== 'title') { ui.inkBar(sim.inkShown / 100); ui.message(sim.message, W); if (sim.state === 'complete') drawComplete(sim); }
+    if (sim.state !== 'title') { ui.inkBar(sim.inkShown / 100); ui.message(sim.message, W); if (sim.state === 'complete') drawComplete(sim); if (sim.state === 'crossed') drawCrossed(sim); }
     if (sim.paused) drawPause(sim, uiState);
   }
 

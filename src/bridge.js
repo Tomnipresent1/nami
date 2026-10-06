@@ -45,6 +45,17 @@ export const FINGER_GAIN = [0.6, 0.8, 1.0];
 export const FINGER_SPEED = [1.0, 1.5, 2.2];       // FAST = v20
 export const KINDS = ['hat', 'hat', 'hat', 'umbrella', 'umbrella', 'pair'];
 
+// ---- the far bank: two choices (Tom: ask, rather than drifting back into play) ----
+export const CHOICE_WAIT = 0.8;                       // seconds before the choices answer
+export const CROSS_CHOICES = ['CROSS AGAIN', 'BACK TO THE ALBUM'];
+/** Where the two choice buttons sit: [centre x, centre y, width, height]. */
+export const crossChoiceBox = (i, W) => [W / 2 + (i === 0 ? -175 : 175), 372, 310, 64];
+/** Which choice (0 / 1) is at picture point x,y; -1 for neither (generous, for thumbs). */
+export function crossChoiceAt(x, y, W) {
+  for (let i = 0; i < 2; i++) { const [cx, cy, w, h] = crossChoiceBox(i, W); if (Math.abs(x - cx) <= w / 2 + 10 && Math.abs(y - cy) <= h / 2 + 24) return i; }
+  return -1;
+}
+
 function mulberry32(a) {
   return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
@@ -82,6 +93,7 @@ export class Bridge {
     this.events = [];
     this.stats = { passed: 0, bumps: 0, splashes: 0, crossings: 0 };
     this.endless = false; this.completeT = 0;
+    this.crossedT = 0; this.crossChoice = 0;
     this.message = null;
   }
 
@@ -144,11 +156,32 @@ export class Bridge {
       if (this.completeT > 4 && (keys.length || taps.length)) { this.state = 'play'; this.endless = true; this.msg('THE BRIDGE IS YOURS. WALK ON.', 5); }
       return;
     }
+    if (this.state === 'crossed') {
+      // at the far bank: the rain and the crowd carry on while you choose (a short wait first, so a steering finger can't choose by accident)
+      this.crossedT += dt;
+      this.stepWorld(dt, {}, false);
+      if (this.crossedT < CHOICE_WAIT) return;
+      for (const k of keys) {
+        if (k === 'left' || k === 'right' || k === 'up' || k === 'down') { this.crossChoice = 1 - this.crossChoice; this.say('blip'); }
+        else if (k === 'enter') return this.chooseAfterCrossing(this.crossChoice);
+      }
+      for (const p of taps) { const c = crossChoiceAt(p.x, p.y, this.W); if (c >= 0) return this.chooseAfterCrossing(c); }
+      return;
+    }
     this.stepWorld(dt, inp, true);
   }
 
+  /** After a crossing: 0 = cross again, 1 = back to the album (the next crossing waits there, paused, for when you come back). */
+  chooseAfterCrossing(c) {
+    const p = this.player;
+    p.s = 0.05; p.d = 0.5; p.vd = 0; p.enterT = 0; p.invuln = 1.5; p.puddle = -1; p.stopT = 0; this.drag = null;
+    this.state = 'play';
+    this.say('blip');
+    if (c === 1) { this.paused = true; this.pauseRow = 0; this.albumRequest = true; }
+  }
+
   stepWorld(dt, inp, scoring) {
-    const T = BTUNE, p = this.player, playing = this.state !== 'title';
+    const T = BTUNE, p = this.player, playing = this.state === 'play' || this.state === 'complete';
     this.t += dt;
     if (this.message && (this.message.t -= dt) <= 0) this.message = null;
 
@@ -193,11 +226,14 @@ export class Bridge {
       p.d = clamp(p.d + p.vd * dt, 0, 1);
       if (p.d === 0 || p.d === 1) p.vd = 0;
 
-      // the far bank: a new crossing begins at the near end
+      // the far bank: stop and choose (cross again, or back to the album). If this crossing finished the print, the print's
+      // own "complete" screen shows instead, and you carry on from the near end afterwards.
       if (p.s >= 0.985) {
         this.stats.crossings++;
-        if (scoring) { this.addInk(T.inkCross); this.say('crossed'); this.msg('THE FAR BANK', 3); }
-        p.s = 0.05; p.d = 0.5; p.vd = 0; p.enterT = 0; p.invuln = 1.5; p.puddle = -1;
+        if (scoring) { this.addInk(T.inkCross); this.say('crossed'); }
+        if (this.state === 'complete') { p.s = 0.05; p.d = 0.5; p.vd = 0; p.enterT = 0; p.invuln = 1.5; p.puddle = -1; }
+        else { this.state = 'crossed'; this.crossedT = 0; this.crossChoice = 0; p.s = 0.985; p.vd = 0; this.drag = null; this.message = null; }
+        return;
       }
 
       // puddles: stepping in splashes and slows you
