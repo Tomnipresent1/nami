@@ -2,6 +2,7 @@
 // (The Great Wave's art.js still has its own older copies of these; new prints use this file.)
 import { VH, clamp, smooth } from './ocean.js';
 import { PAUSE_Y0, PAUSE_DY, SENS_OPTS, SENS_DEG } from './sim.js';
+import { choiceBox } from './choice.js';
 
 export const PAPER = '#efe4c6', INK = '#16213b', SEAL = '#b3342b', MUTED = '#4a5470';
 export const FONT = "Georgia, 'Times New Roman', serif";
@@ -85,6 +86,18 @@ export function createUI(canvas) {
     text('v' + o.build, 18, VH - 18, 12, MUTED, 'left');
   }
   const sensLabel = (i) => SENS_OPTS[i] + ' (' + SENS_DEG[i] + ')';
+  /** The pair of "carry on" / "back to the album" buttons (layout in choice.js). o: { W, sel, ready, alpha } */
+  function choices(labels, o) {
+    const a = o.alpha ?? 1;
+    labels.forEach((label, i) => {
+      const [cx, cy, w, h] = choiceBox(i, o.W), sel = o.sel === i;
+      ctx.globalAlpha = a * (o.ready ? 1 : 0.5);
+      ctx.fillStyle = sel ? 'rgba(214,200,166,0.92)' : 'rgba(239,228,198,0.85)'; roundRect(cx - w / 2, cy - h / 2, w, h, 10); ctx.fill();
+      ctx.strokeStyle = INK; ctx.lineWidth = sel ? 2.4 : 1.4; ctx.stroke();
+      text(label, cx, cy, 22, INK, 'center', i === 0 ? 'bold' : '');
+    });
+    ctx.globalAlpha = 1;
+  }
 
-  return { ctx, text, paperGrain, seal, roundRect, inkBar, message, pauseMenu, sensLabel };
+  return { ctx, text, paperGrain, seal, roundRect, inkBar, message, pauseMenu, sensLabel, choices };
 }

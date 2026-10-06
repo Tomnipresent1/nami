@@ -2,7 +2,8 @@
 // poling slowly by, the great wooden bridge rising from the lower left on its dark legs, the crowd hunched under hats and umbrellas,
 // and fine rain falling in two sets of lines at slightly different angles. Drawn live in code; this file only draws.
 import { VH, clamp } from './ocean.js';
-import { deckFront, deckDepth, deckPoint, figScale, BRIDGE_PAUSE_ROWS, BRIDGE_STEER_OPTS, CROWD_OPTS, FINGER_OPTS, CROSS_CHOICES, CHOICE_WAIT, crossChoiceBox } from './bridge.js';
+import { deckFront, deckDepth, deckPoint, figScale, BRIDGE_PAUSE_ROWS, BRIDGE_STEER_OPTS, CROWD_OPTS, FINGER_OPTS, CROSS_CHOICES, DONE_CHOICES, DONE_WAIT } from './bridge.js';
+import { CHOICE_WAIT } from './choice.js';
 import { createUI, inked, INK, SEAL, MUTED } from './ui.js';
 import { BUILD } from './version.js';
 
@@ -255,23 +256,15 @@ export function createBridgeArt(canvas) {
     ctx.globalAlpha = a;
     ui.text('THE FAR BANK', W / 2, 205, 44, INK, 'center', 'bold');
     ui.text(sim.stats.crossings === 1 ? 'YOU HAVE CROSSED THE BRIDGE' : 'CROSSING ' + sim.stats.crossings + ' COMPLETE', W / 2, 258, 20, MUTED, 'center');
-    const ready = sim.crossedT >= CHOICE_WAIT;
-    CROSS_CHOICES.forEach((label, i) => {
-      const [cx, cy, w, h] = crossChoiceBox(i, W), sel = sim.crossChoice === i;
-      ctx.globalAlpha = a * (ready ? 1 : 0.5);
-      ctx.fillStyle = sel ? 'rgba(22,33,59,0.12)' : 'rgba(239,228,198,0.75)'; ui.roundRect(cx - w / 2, cy - h / 2, w, h, 10); ctx.fill();
-      ctx.strokeStyle = INK; ctx.lineWidth = sel ? 2.4 : 1.4; ctx.stroke();
-      ui.text(label, cx, cy, 22, INK, 'center', i === 0 ? 'bold' : '');
-    });
-    ctx.globalAlpha = 1;
+    ui.choices(CROSS_CHOICES, { W, sel: sim.crossChoice, ready: sim.crossedT >= CHOICE_WAIT, alpha: a });
   }
   function drawComplete(sim) {
     ctx.globalAlpha = clamp(sim.completeT / 2, 0, 1);
     ui.text('SUDDEN SHOWER', W / 2, 185, 44, INK, 'center', 'bold');
     ui.text('COMPLETE', W / 2, 235, 24, INK, 'center');
     ui.seal(W - 90, VH - 90, 1.6);
-    if (sim.completeT > 4 && ((sim.completeT * 1.4) | 0) % 2 === 0) ui.text('TOUCH TO KEEP WALKING', W / 2, 520, 20, INK, 'center');
     ctx.globalAlpha = 1;
+    if (sim.completeT >= DONE_WAIT) ui.choices(DONE_CHOICES, { W, sel: sim.crossChoice, ready: true, alpha: clamp((sim.completeT - DONE_WAIT) / 0.6, 0, 1) });
   }
 
   // ---------- one frame ----------

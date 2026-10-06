@@ -2,8 +2,9 @@
 // outlines, flat blues. The colour is "ink": the more you earn, the more of the print is filled in.
 // This file only draws; it never changes the game.
 import { BASE_Y, HORIZON, VH, smooth, clamp, ambient, waveX, waveAmp, waveCurl, waveBreak, waveHeightAt, T_LAND, T_BREAK, T_BREAK_END, T_GONE } from './ocean.js';
-import { PAUSE_ROWS, PAUSE_Y0, PAUSE_DY, SENS_OPTS, SENS_DEG, STEER_OPTS, SCREEN_MIRRORED } from './sim.js';
+import { PAUSE_ROWS, PAUSE_Y0, PAUSE_DY, SENS_OPTS, SENS_DEG, STEER_OPTS, SCREEN_MIRRORED, DONE_CHOICES, DONE_WAIT } from './sim.js';
 import { BUILD } from './version.js';
+import { createUI } from './ui.js';
 
 // ---------- palette ----------
 const PAPER = '#efe4c6', INK = '#16213b', FOAM = '#f8f1df', WOOD = '#cfa86a', ROBE = '#2d4b7d', SKIN = '#e6c8a2', SEAL = '#b3342b';
@@ -54,6 +55,7 @@ function makeGrain() {
 
 export function createArt(canvas) {
   const ctx = canvas.getContext('2d');
+  const ui = createUI(canvas);              // shared buttons (the finished-print choices)
   const grain = makeGrain();
   const grainPattern = ctx.createPattern(grain, 'repeat');
   let W = 1300, scale = 1, dpr = 1;
@@ -415,8 +417,8 @@ export function createArt(canvas) {
     text('THE GREAT WAVE', W / 2, 185, 44, INK, 'center', 'bold');
     text('COMPLETE', W / 2, 235, 24, INK, 'center');
     drawSeal(W - 90, VH - 90, 1.6);
-    if (sea.completeT > 4 && (time * 1.4 | 0) % 2 === 0) text('TOUCH TO KEEP SAILING', W / 2, 520, 20, INK, 'center');
     ctx.globalAlpha = 1;
+    if (sea.completeT >= DONE_WAIT) ui.choices(DONE_CHOICES, { W, sel: sea.doneChoice, ready: true, alpha: clamp((sea.completeT - DONE_WAIT) / 0.6, 0, 1) });
   }
 
   // ---------- draw one frame ----------

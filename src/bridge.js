@@ -5,6 +5,7 @@
 // Pure logic: no drawing, no sound, no DOM. tools/selftest.mjs plays it with a bot.
 import { clamp } from './ocean.js';
 import { MIN_W, MAX_W, PAUSE_Y0, PAUSE_DY, SENS_OPTS } from './sim.js';
+import { CHOICE_WAIT, readChoice } from './choice.js';
 
 // ---- the bridge in the picture (fixed view, like the print) ----
 // Positions on the deck: s = how far along (0 = the near end, bottom left; 1 = the far end, right edge),
@@ -45,16 +46,10 @@ export const FINGER_GAIN = [0.6, 0.8, 1.0];
 export const FINGER_SPEED = [1.0, 1.5, 2.2];       // FAST = v20
 export const KINDS = ['hat', 'hat', 'hat', 'umbrella', 'umbrella', 'pair'];
 
-// ---- the far bank: two choices (Tom: ask, rather than drifting back into play) ----
-export const CHOICE_WAIT = 0.8;                       // seconds before the choices answer
+// ---- the far bank, and the finished print: two choices (Tom: ask, rather than drifting back into play) ----
 export const CROSS_CHOICES = ['CROSS AGAIN', 'BACK TO THE ALBUM'];
-/** Where the two choice buttons sit: [centre x, centre y, width, height]. */
-export const crossChoiceBox = (i, W) => [W / 2 + (i === 0 ? -175 : 175), 372, 310, 64];
-/** Which choice (0 / 1) is at picture point x,y; -1 for neither (generous, for thumbs). */
-export function crossChoiceAt(x, y, W) {
-  for (let i = 0; i < 2; i++) { const [cx, cy, w, h] = crossChoiceBox(i, W); if (Math.abs(x - cx) <= w / 2 + 10 && Math.abs(y - cy) <= h / 2 + 24) return i; }
-  return -1;
-}
+export const DONE_CHOICES = ['KEEP WALKING', 'BACK TO THE ALBUM'];
+export const DONE_WAIT = 4;                           // the finished print shows on its own for a moment first
 
 function mulberry32(a) {
   return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -151,9 +146,17 @@ export class Bridge {
       return;
     }
     if (this.state === 'complete') {
+      // the finished print: walk on (endless), or back to the album
       this.completeT += dt;
       this.stepWorld(dt, inp, false);
-      if (this.completeT > 4 && (keys.length || taps.length)) { this.state = 'play'; this.endless = true; this.msg('THE BRIDGE IS YOURS. WALK ON.', 5); }
+      if (this.completeT < DONE_WAIT) return;
+      const r = readChoice(keys, taps, this.W, this.crossChoice);
+      if (r.sel !== this.crossChoice) { this.crossChoice = r.sel; this.say('blip'); }
+      if (r.chosen >= 0) {
+        this.state = 'play'; this.endless = true; this.say('blip');
+        if (r.chosen === 1) { this.paused = true; this.pauseRow = 0; this.albumRequest = true; }
+        else this.msg('THE BRIDGE IS YOURS. WALK ON.', 5);
+      }
       return;
     }
     if (this.state === 'crossed') {
@@ -161,11 +164,9 @@ export class Bridge {
       this.crossedT += dt;
       this.stepWorld(dt, {}, false);
       if (this.crossedT < CHOICE_WAIT) return;
-      for (const k of keys) {
-        if (k === 'left' || k === 'right' || k === 'up' || k === 'down') { this.crossChoice = 1 - this.crossChoice; this.say('blip'); }
-        else if (k === 'enter') return this.chooseAfterCrossing(this.crossChoice);
-      }
-      for (const p of taps) { const c = crossChoiceAt(p.x, p.y, this.W); if (c >= 0) return this.chooseAfterCrossing(c); }
+      const r = readChoice(keys, taps, this.W, this.crossChoice);
+      if (r.sel !== this.crossChoice) { this.crossChoice = r.sel; this.say('blip'); }
+      if (r.chosen >= 0) this.chooseAfterCrossing(r.chosen);
       return;
     }
     this.stepWorld(dt, inp, true);
@@ -310,7 +311,7 @@ export class Bridge {
     const before = this.ink;
     this.ink = Math.min(100, this.ink + v);
     if (Math.floor(this.ink / 10) > Math.floor(before / 10)) this.say('ink', { level: Math.floor(this.ink / 10) });
-    if (this.ink >= 100 && this.state === 'play') { this.state = 'complete'; this.completeT = 0; this.say('complete'); this.msg('THE PRINT IS COMPLETE', 6); }
+    if (this.ink >= 100 && this.state === 'play') { this.state = 'complete'; this.completeT = 0; this.crossChoice = 0; this.say('complete'); this.msg('THE PRINT IS COMPLETE', 6); }
   }
 }
 

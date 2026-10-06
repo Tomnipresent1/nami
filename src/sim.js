@@ -1,6 +1,7 @@
 // NAMI: the rules. A boat on a rocking sea; every so often a big wave builds, curls and breaks in front of you.
 // You rock the phone to move the boat. Get out of the way (or ride over the top) and the print fills with ink.
 // Pure logic: no drawing, no sound, no DOM. tools/selftest.mjs plays it with a bot.
+import { readChoice } from './choice.js';
 import { BASE_Y, VH, clamp, surface, surfaceSlope, waveX, waveZone, waveAmp, T_LAND, T_GONE, T_BREAK_END, WAVE_SPEED, ZONE_FRONT, ZONE_BACK } from './ocean.js';
 
 // The sea rolls right-to-left in the maths. The picture is drawn flipped so on screen the big wave comes from the LEFT, like the print.
@@ -28,6 +29,9 @@ export const TUNE = {
   calmRegen: 1.8,      // calm regained per second
   waveGap: 2.6,        // seconds of quiet between one wave breaking and the next one starting
 };
+
+export const DONE_CHOICES = ['KEEP SAILING', 'BACK TO THE ALBUM'];
+export const DONE_WAIT = 4;                  // the finished print shows on its own for a moment before the choices appear
 
 export const PAUSE_ROWS = ['resume', 'album', 'steer', 'sens', 'zen', 'sound', 'recentre', 'restart'];
 export const PAUSE_Y0 = 150;
@@ -71,7 +75,7 @@ export class Sea {
     this.events = [];
     this.stats = { hits: 0, foam: 0, ridden: 0, eased: 0, waves: 0 };
     this.endless = false;          // after completing the print you can keep sailing
-    this.completeT = 0;
+    this.completeT = 0; this.doneChoice = 0;
     this.message = null;
   }
 
@@ -125,9 +129,17 @@ export class Sea {
     if (this.paused) { for (const k of keys) this.pauseKey(k); for (const p of taps) this.pauseTap(p.x, p.y); return; }
     if (this.state === 'title') { if (keys.length || taps.length || inp.start) { this.reset(); this.state = 'play'; this.say('start'); this.msg('LEAN THE PHONE TO MOVE THE BOAT', 5); } return; }
     if (this.state === 'complete') {
+      // the finished print: keep sailing (endless), or back to the album (Tom: same choice as the bridge)
       this.completeT += dt;
       this.stepWorld(dt, inp.steer || 0, false);
-      if (this.completeT > 4 && (keys.length || taps.length || inp.start)) { this.state = 'play'; this.endless = true; this.msg('THE SEA IS YOURS. SAIL ON.', 5); }
+      if (this.completeT < DONE_WAIT) return;
+      const r = readChoice(keys, taps, this.W, this.doneChoice);
+      if (r.sel !== this.doneChoice) { this.doneChoice = r.sel; this.say('blip'); }
+      if (r.chosen >= 0) {
+        this.state = 'play'; this.endless = true; this.say('blip');
+        if (r.chosen === 1) { this.paused = true; this.pauseRow = 0; this.albumRequest = true; }
+        else this.msg('THE SEA IS YOURS. SAIL ON.', 5);
+      }
       return;
     }
     this.stepWorld(dt, inp.steer || 0, true);
@@ -255,6 +267,6 @@ export class Sea {
     const before = this.ink;
     this.ink = Math.min(100, this.ink + v);
     if (Math.floor(this.ink / 10) > Math.floor(before / 10)) this.say('ink', { level: Math.floor(this.ink / 10) });
-    if (this.ink >= 100 && this.state === 'play') { this.state = 'complete'; this.completeT = 0; this.say('complete'); this.msg('THE PRINT IS COMPLETE', 6); }
+    if (this.ink >= 100 && this.state === 'play') { this.state = 'complete'; this.completeT = 0; this.doneChoice = 0; this.say('complete'); this.msg('THE PRINT IS COMPLETE', 6); }
   }
 }
