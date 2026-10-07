@@ -63,9 +63,8 @@ export const HUTS = [
 // blossom on it, and the keeper (a man, in a dark haori) at the tea house's front. The stroll closes there: she arrives, bows to
 // him (he bows back), then puts the blossom she gathered into the vase herself, in two gentle movements; a moment, then the fade.
 export const TEA = HUTS[1];
-// (v3.19: a step further from the tea house, so from the camera the blossom is seen against the garden's green, not the hut's
-//  dark front)
-export const TABLE = { x: TEA.x - TEA.hw - 1.2, z: TEA.z - TEA.hd - 1.3, r: 0.45, top: 0.58 };
+// (v3.20, Tom: back where it was in v3.18; a step further out (v3.19) looked out of place beside the tea house)
+export const TABLE = { x: TEA.x - TEA.hw - 0.3, z: TEA.z - TEA.hd - 1.3, r: 0.45, top: 0.58 };
 export const KEEPER = { x: TEA.x - TEA.hw + 0.9, z: TEA.z - TEA.hd - 0.25 };             // at the front of the tea house
 export const OFFER_SPOT = { x: TABLE.x - 0.55, z: TABLE.z - 0.8 };                       // where she stands, just in front of the table
 export const VASE = { x: TABLE.x, y: TABLE.top, z: TABLE.z };                            // on the table
