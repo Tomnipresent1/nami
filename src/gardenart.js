@@ -5,7 +5,7 @@
 import { VH, clamp } from './ocean.js';
 import { pathX, HUTS, KAGO, SHOW_KAGO, POND, TREE_KINDS, pickButton, KEEPER, VASE, TABLE, GTUNE, GARDEN_PAUSE_ROWS, G_FINGER_OPTS, STROLL_CHOICES, DONE_CHOICES, DONE_WAIT } from './garden.js';
 import { CHOICE_WAIT } from './choice.js';
-import { createUI, inked, INK, MUTED } from './ui.js';
+import { createUI, inked, INK, MUTED, FONT } from './ui.js';
 import { BUILD } from './version.js';
 
 // ---- the camera (all of these can be tuned for feel) ----
@@ -516,9 +516,12 @@ export function createGardenArt(canvas) {
       ctx.fillStyle = SKIN; ctx.beginPath(); ctx.ellipse(side * (0.165 - 0.08 * k), -0.665, 0.06, 0.1, 0, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
-    ctx.fillStyle = HAIR; ctx.beginPath(); ctx.arc(-look * 0.02, o.front ? -0.74 : -0.7, 0.12, Math.PI, 0); ctx.fill();
-    ctx.beginPath(); ctx.arc(-look * 0.05, -0.84, 0.07, 0, Math.PI * 2); ctx.fill();               // hair bun
-    if (o.ornament) { ctx.fillStyle = '#c4473a'; ctx.beginPath(); ctx.arc(-look * 0.05 + 0.07, -0.87, 0.028, 0, Math.PI * 2); ctx.fill(); }   // a hairpin
+    // the hair turns WITH the head: facing you, it moves exactly with the face (v3.18, Tom: on some people the hair slid off
+    // sideways as they turned, because it moved the opposite way to the face); seen from behind, the bun just shifts a little
+    const hairX = o.front ? look * 0.035 : -look * 0.02, bunX = o.front ? look * 0.035 : -look * 0.035;
+    ctx.fillStyle = HAIR; ctx.beginPath(); ctx.arc(hairX, o.front ? -0.74 : -0.7, 0.12, Math.PI, 0); ctx.fill();
+    ctx.beginPath(); ctx.arc(bunX, -0.84, 0.07, 0, Math.PI * 2); ctx.fill();                      // hair bun
+    if (o.ornament) { ctx.fillStyle = '#c4473a'; ctx.beginPath(); ctx.arc(bunX + 0.07, -0.87, 0.028, 0, Math.PI * 2); ctx.fill(); }   // a hairpin
     ctx.restore();
     if (o.basket != null) basketShape(0.31, -0.42, o.basket);         // her basket, hanging at her side
     ctx.restore();
@@ -563,6 +566,15 @@ export function createGardenArt(canvas) {
     // (v3.17, Tom: no number here; the vase always shows three stems, so "6 sprigs" jarred)
     ui.text(sim.handedOver ? 'YOU HAVE FILLED THE VASE WITH BLOSSOMS'
       : sim.stats.strolls === 1 ? 'A STROLL THROUGH THE PLUM GARDEN' : 'STROLL ' + sim.stats.strolls + ' COMPLETE', W / 2, 256, 20, MUTED, 'center');
+    if (sim.handedOver) {
+      // 恵み (megumi): "blessing", the gifts of the season; shown as "blessings", which sounds better (Tom, v3.18)
+      const jp = '恵み', en = '  (blessings)';
+      ctx.font = `24px ${FONT}`; const w1 = ctx.measureText(jp).width;
+      ctx.font = `italic 18px ${FONT}`; const w2 = ctx.measureText(en).width;
+      const x0 = W / 2 - (w1 + w2) / 2;
+      ui.text(jp, x0, 296, 24, INK, 'left');
+      ui.text(en, x0 + w1, 297, 18, MUTED, 'left', 'italic');
+    }
     ctx.globalAlpha = 1;
     ui.choices(STROLL_CHOICES, { W, sel: sim.choice, ready: sim.arrivedT >= CHOICE_WAIT + 0.8, alpha: a });
   }
