@@ -82,8 +82,11 @@ const TRUNKS = ['#3a2d2a', '#4a3a33', '#2e2523', '#53413a', '#3d3330', '#4b3b2e'
 const BLOOM = [1, 0.8, 0.62, 1, 0.9, 0.7, 1, 0.85];
 const PETAL = ['#fbf6ec', '#fdf3ee', '#f8f4ea', '#fbf1ef', '#fbf6ec', '#f6f1e6', '#fdf5f3', '#faf6ee'];
 function makeTree(kind) {
-  const W = 760, H = 608, k = H / 720, c = document.createElement('canvas'); c.width = W; c.height = H;
-  const x = c.getContext('2d'), r = rng(kind + 0.123), bark = TRUNKS[kind % TRUNKS.length];
+  // painted on a roomy canvas, then trimmed to whatever the branches actually reached, so no crown is ever cut off flat at the
+  // top or sides (v3.23, Tom spotted trees "cut at the top": the branches had grown past the old fixed 760x608 canvas)
+  const W = 760, H = 608, PAD = 400, k = H / 720, big = document.createElement('canvas'); big.width = W + PAD * 2; big.height = H + PAD;
+  const x = big.getContext('2d', { willReadFrequently: true }), r = rng(kind + 0.123), bark = TRUNKS[kind % TRUNKS.length];
+  x.translate(PAD, PAD);
   const tips = [];
   const branch = (bx, by, ang, len, w, depth) => {
     const bend = (r() - 0.5) * 0.5, ex = bx + Math.cos(ang) * len, ey = by - Math.sin(ang) * len;
@@ -118,7 +121,18 @@ function makeTree(kind) {
     x.strokeStyle = 'rgba(90,60,60,0.55)'; x.lineWidth = 1; x.stroke();
     x.fillStyle = r() < 0.4 ? '#e09a9a' : '#d9b85f'; x.beginPath(); x.arc(tx, ty, s * 0.3, 0, Math.PI * 2); x.fill();
   }
-  return { c, mips: halvings(c), w: W / TREE_PX, h: H / TREE_PX };
+  const c = trimTree(big, PAD + W / 2);
+  return { c, mips: halvings(c), w: c.width / TREE_PX, h: c.height / TREE_PX };
+}
+// cut a painted tree down to its branches: keeps the bottom (where it stands) and stays centred on the trunk, so it is placed as before
+function trimTree(big, cx) {
+  const { width: BW, height: BH } = big, a = big.getContext('2d').getImageData(0, 0, BW, BH).data;
+  let top = BH, reach = 0;
+  for (let y = 0; y < BH; y++) for (let xx = 0; xx < BW; xx++) if (a[(y * BW + xx) * 4 + 3] > 0) { if (y < top) top = y; reach = Math.max(reach, Math.abs(xx + 0.5 - cx)); }
+  const half = Math.ceil(reach) + 4, y0 = Math.max(0, top - 4), c = document.createElement('canvas');
+  c.width = half * 2; c.height = BH - y0;
+  c.getContext('2d').drawImage(big, cx - half, y0, half * 2, BH - y0, 0, 0, half * 2, BH - y0);
+  return c;
 }
 // the same picture at half, quarter and eighth size: a far-off tree is drawn from a small copy instead of shrinking the big one
 // every frame, which looks the same and is far less work for a modest phone (v3.22, Tom: jittery on a budget phone)
