@@ -193,18 +193,26 @@ export function createGardenArt(canvas) {
     for (let i = 0; i < 120; i++) petals.push(newPetal(true));
   }
   const C = (name, ink) => inked(LAYERS[name], ink);
-  const project = (x, y, z) => { const dz = z - cam.z; if (dz < 0.6) return null; const s = CAM.F / dz; return [W / 2 + (x - cam.x) * s, CAM.horizon + (CAM.height - y) * s, s, dz]; };
+  // [screen x, screen y, scale, depth from the camera, the garden x it came from]
+  const project = (x, y, z) => { const dz = z - cam.z; if (dz < 0.6) return null; const s = CAM.F / dz; return [W / 2 + (x - cam.x) * s, CAM.horizon + (CAM.height - y) * s, s, dz, x]; };
   // far things fade into the haze, near things fade so they never fill the screen
   // things between the camera and you: near the middle of the screen they fade out (so nothing blocks your view or turns into a
   // pale ghost); out at the edges they stay solid and sweep past, cropped by the frame like the print's big foreground trunk
   // (v26: only things that would actually stand in front of YOU fade, and quickly; the rest stay solid, no half-see-through ghosts)
-  let youX = W / 2;
+  // (v3.14: decided by where a thing STANDS in the garden, beside the line from the camera to you, not by where it is on screen.
+  //  On screen, anything close to the lens slides fast toward the edge, so a faded tree used to leave the middle and snap back
+  //  solid and huge right in front of the camera, Tom saw. In garden terms it stays put, so the fade is smooth and stays.)
+  let youWX = 0;                                   // your x in the garden this frame
   let teaTurn = 0;                                 // 0..1: how far the camera has turned toward the tea house
-  const fadeFor = (dz, sx = W / 2) => {
+  const fadeFor = (dz, wx) => {
     const haze = 1 - 0.5 * clamp((dz - 90) / 180, 0, 1);
     if (dz >= CAM.back - 1) return haze;                                        // beyond you: never in the way
-    const inFront = Math.abs(sx - youX) < W * 0.13;
-    return (inFront ? clamp((dz - CAM.back * 0.6) / (CAM.back * 0.12), 0, 1) : clamp((dz - 1.5) / 1.5, 0, 1)) * haze;
+    const lineX = cam.x + (youWX - cam.x) * (dz / CAM.back);                     // the camera's view of you passes here at this depth
+    const aside = wx == null ? 0 : Math.abs(wx - lineX);
+    const blocking = 1 - clamp((aside - 2.6) / 1.6, 0, 1);                      // 1 = would stand in the way of you, 0 = well to the side
+    const soloFade = clamp((dz - CAM.back * 0.55) / (CAM.back * 0.2), 0, 1);    // in the way: fade out gently as it nears the camera
+    const edgeCut = clamp((dz - 1.5) / 1.5, 0, 1);                               // to the side: solid until right at the lens
+    return (blocking * soloFade + (1 - blocking) * edgeCut) * haze;
   };
   // people are different: anyone who has passed behind you fades away quickly wherever they are on screen, so nobody ever looms
   // up close in front of the lens (v3.12, Tom: now and then someone appeared huge in front of the camera for a second)
@@ -252,7 +260,7 @@ export function createGardenArt(canvas) {
     ctx.fillStyle = C('shadow', ink);
     for (const t of sim.garden.trees) {
       const p = project(t.x - 1.4, 0, t.z - 0.3); if (!p || p[3] > 170 || p[3] < 2) continue;
-      ctx.globalAlpha = 0.45 * fadeFor(p[3], p[0]);
+      ctx.globalAlpha = 0.45 * fadeFor(p[3], p[4]);
       ctx.beginPath(); ctx.ellipse(p[0], p[1], 2.6 * p[2], 0.32 * p[2], 0, 0, Math.PI * 2); ctx.fill();
     }
     ctx.globalAlpha = 1;
@@ -261,7 +269,7 @@ export function createGardenArt(canvas) {
   // ---------- cut-outs ----------
   function drawTree(t, p, wind, time) {
     const sp = trees[t.kind % trees.length], s = p[2] * (t.size || 1), w = sp.w * s, h = sp.h * s;
-    ctx.save(); ctx.globalAlpha = fadeFor(p[3], p[0]);
+    ctx.save(); ctx.globalAlpha = fadeFor(p[3], p[4]);
     // the crown sways with the breeze; the trunk stays put (a shear about the base). Some trees are drawn mirrored.
     const sway = (Math.sin(time * 1.1 + t.seed) * 0.5 + Math.sin(time * 2.3 + t.seed * 2) * 0.2) * wind * 0.045;
     ctx.setTransform((t.flip ? -1 : 1) * scale, 0, sway * scale, scale, (p[0] - sway * p[1]) * scale, 0);
@@ -271,7 +279,7 @@ export function createGardenArt(canvas) {
   }
   function drawHut(hut, p) {
     const sp = hut.double ? huts.double : huts.single, s = p[2];
-    ctx.save(); ctx.globalAlpha = fadeFor(p[3], p[0]);
+    ctx.save(); ctx.globalAlpha = fadeFor(p[3], p[4]);
     ctx.drawImage(sp.c, p[0] - (sp.w * s) / 2, p[1] - sp.h * s, sp.w * s, sp.h * s);
     ctx.restore();
   }
@@ -313,7 +321,7 @@ export function createGardenArt(canvas) {
     sim.sprigs.forEach((s, i) => {
       if (s.picked) return;
       const p = project(s.x, 0, s.z); if (!p || p[3] > 90) return;
-      const a = fadeFor(p[3], p[0]); if (a < 0.02) return;
+      const a = fadeFor(p[3], p[4]); if (a < 0.02) return;
       ctx.globalAlpha = a;
       if (i === sim.reachable) {
         // within reach: a soft glow pulses around it
@@ -343,7 +351,7 @@ export function createGardenArt(canvas) {
   function drawFence(f, p) {
     // a low bamboo fence: two rails and a row of thin uprights, as around the trees in the print
     const s = p[2], hw = (f.w / 2) * s, h = 0.55 * s;
-    ctx.save(); ctx.globalAlpha = 0.9 * fadeFor(p[3], p[0]);
+    ctx.save(); ctx.globalAlpha = 0.9 * fadeFor(p[3], p[4]);
     ctx.strokeStyle = '#4b5a3c'; ctx.lineCap = 'round';
     ctx.lineWidth = Math.max(0.6, 0.05 * s);
     ctx.beginPath(); ctx.moveTo(p[0] - hw, p[1] - h * 0.85); ctx.lineTo(p[0] + hw, p[1] - h * 0.85); ctx.moveTo(p[0] - hw, p[1] - h * 0.4); ctx.lineTo(p[0] + hw, p[1] - h * 0.4); ctx.stroke();
@@ -357,7 +365,7 @@ export function createGardenArt(canvas) {
   function drawKago(p, wind, time) {
     // the parked palanquin: a long carrying pole on green stands, the basket seat with its patterned blue cushion, a green cloth over the pole
     const s = p[2];
-    ctx.save(); ctx.globalAlpha = fadeFor(p[3], p[0]); ctx.translate(p[0], p[1]); ctx.scale(s, s);
+    ctx.save(); ctx.globalAlpha = fadeFor(p[3], p[4]); ctx.translate(p[0], p[1]); ctx.scale(s, s);
     const swing = Math.sin(time * 1.3) * 0.03 * wind;
     ctx.lineCap = 'round';
     ctx.strokeStyle = '#2f7a5b'; ctx.lineWidth = 0.13;                                              // stands
@@ -405,7 +413,7 @@ export function createGardenArt(canvas) {
     const t = TABLE, c = project(t.x, t.top, t.z), f = project(t.x, t.top, t.z - t.r), b = project(t.x, t.top, t.z + t.r), g = project(t.x, 0, t.z);
     if (!(c && f && b && g)) return;
     const rx = t.r * c[2], ry = Math.max(1, Math.abs(f[1] - b[1]) / 2), cy = (f[1] + b[1]) / 2;
-    ctx.save(); ctx.globalAlpha = fadeFor(c[3], c[0]);
+    ctx.save(); ctx.globalAlpha = fadeFor(c[3], c[4]);
     ctx.fillStyle = 'rgba(30,60,45,0.22)'; ctx.beginPath(); ctx.ellipse(g[0], g[1], rx * 0.7, ry * 0.7, 0, 0, Math.PI * 2); ctx.fill();   // its shadow
     ctx.fillStyle = '#6e5238'; ctx.fillRect(c[0] - 0.05 * c[2], cy, 0.1 * c[2], g[1] - cy);                                             // the leg
     ctx.beginPath(); ctx.ellipse(g[0], g[1], 0.2 * c[2], 0.2 * c[2] * (ry / rx), 0, 0, Math.PI * 2); ctx.fill();                        // its foot
@@ -417,7 +425,7 @@ export function createGardenArt(canvas) {
   // the vase on the tea house's counter, holding the blossom she has handed over (it fills up over the strolls)
   function drawVase(p, count, time, wind) {
     const s = p[2];
-    ctx.save(); ctx.globalAlpha *= fadeFor(p[3], p[0]); ctx.translate(p[0], p[1]); ctx.scale(s, s);
+    ctx.save(); ctx.globalAlpha *= fadeFor(p[3], p[4]); ctx.translate(p[0], p[1]); ctx.scale(s, s);
     // the sprigs she gathered, standing up out of the vase and fanning out: the same twigs of round white blossom with pink hearts
     // as on the grass (v3.12, Tom: they had turned into thin sticks with dots), swaying just a little
     const n = Math.min(count, 14);
@@ -462,7 +470,7 @@ export function createGardenArt(canvas) {
   function drawPerson(p, o) {
     // a figure in kimono, about 1.6 tall; front: facing you, else seen from behind
     const s = p[2];
-    ctx.save(); ctx.globalAlpha = (o.alpha ?? 1) * (o.passerby ? fadePerson(p[3]) : fadeFor(p[3], p[0]));
+    ctx.save(); ctx.globalAlpha = (o.alpha ?? 1) * (o.passerby ? fadePerson(p[3]) : fadeFor(p[3], p[4]));
     ctx.translate(p[0], p[1]); ctx.scale(s, s);
     ctx.fillStyle = 'rgba(30,60,45,0.22)'; ctx.beginPath(); ctx.ellipse(0, 0, 0.35, 0.08, 0, 0, Math.PI * 2); ctx.fill();
     const bob = Math.abs(Math.sin(o.step * Math.PI)) * 0.03, sway = Math.sin(o.step * Math.PI) * 0.03;
@@ -567,7 +575,7 @@ export function createGardenArt(canvas) {
     else { cam.x += (wantX - cam.x) * Math.min(1, dt * CAM.ease); cam.z += (wantZ - cam.z) * Math.min(1, dt * CAM.ease * 2); }
 
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
-    { const q = project(p.x, 0, p.z); youX = showYou && q ? q[0] : W / 2; }
+    youWX = showYou ? p.x : cam.x;
     drawSky(ink);
     drawGround(ink);
     drawFarBand(ink);                                  // after the ground, so the far trees stand over the horizon line
@@ -594,7 +602,7 @@ export function createGardenArt(canvas) {
     if (tea.handful) onTable('handful', tea.handful.pos, tea.handful);
     list.sort((a, b) => b[0] - a[0]);
     for (const [, kind, o, q] of list) {
-      if (kind !== 'you' && (kind === 'person' ? fadePerson(q[3]) : fadeFor(q[3], q[0])) < 0.02) continue;
+      if (kind !== 'you' && (kind === 'person' ? fadePerson(q[3]) : fadeFor(q[3], q[4])) < 0.02) continue;
       if (kind === 'tree') drawTree(o, q, sim.wind, time);
       else if (kind === 'hut') drawHut(o, q);
       else if (kind === 'fence') drawFence(o, q);

@@ -69,7 +69,9 @@ export const VASE = { x: TABLE.x, y: TABLE.top, z: TABLE.z };                   
 export const VASE_START = 0;              // the vase waits empty each stroll, so what ends up in it is what she gathered (Tom, v3.12)
 export const OFFER_FROM = OFFER_SPOT.z - 5;            // walking this far in, she makes her way over to the tea house by herself
 // a clear space in front of the tea house: nobody lingers here, and passers-by give it a wide berth while you are there (Tom)
-export const TEA_CLEAR = { x: (OFFER_SPOT.x + KEEPER.x) / 2, z: (OFFER_SPOT.z + KEEPER.z) / 2, r: 4.5 };
+// (v3.14, Tom: two people still stood near the table and faded as she arrived: the space is bigger, and kept clear from the start)
+export const TEA_CLEAR = { x: (OFFER_SPOT.x + KEEPER.x) / 2, z: (OFFER_SPOT.z + KEEPER.z) / 2, r: 7 };
+const FAR_LANE = (z) => pathX(z) - TEA.side * 3.3;      // passers-by keep to this side of the path as they pass the tea house
 const inTeaClear = (x, z, pad = 0) => Math.hypot(x - TEA_CLEAR.x, z - TEA_CLEAR.z) < TEA_CLEAR.r + pad;
 
 // the kago stands just beside where you begin, so at the start it is big and cropped by the right edge, framing the view as in the print
@@ -183,10 +185,10 @@ export class Garden {
       face: r() < 0.6, ...extra });
     for (let z = 3; z < PATH_END + 30; z += 6 + r() * 7) {           // (from just ahead of you: anyone behind you would be right in front of the camera)
       const side = r() < 0.5 ? -1 : 1, x = pathX(z) + side * (2 + r() * 6);
-      if (inTeaClear(x, z, 1.5) || nearSprig(x, z, 2.2)) continue;          // nobody lingers in front of the tea house, or on fallen blossom
+      if (inTeaClear(x, z, 3) || nearSprig(x, z, 2.2)) continue;            // nobody lingers anywhere near the tea house, or on fallen blossom
       this.people.push(person('stand', x, z));
       // often in pairs, admiring the blossom together
-      if (r() < 0.45 && !inTeaClear(x + side * 0.8, z + 0.4, 1.5) && !nearSprig(x + side * 0.8, z + 0.4, 2.2)) this.people.push(person('stand', x + side * 0.8, z + 0.4));
+      if (r() < 0.45 && !inTeaClear(x + side * 0.8, z + 0.4, 3) && !nearSprig(x + side * 0.8, z + 0.4, 2.2)) this.people.push(person('stand', x + side * 0.8, z + 0.4));
     }
     for (let k = 0; k < 7; k++) {
       const z = 20 + k * 28 + r() * 12, away = k % 3 === 1;
@@ -387,11 +389,15 @@ export class Garden {
       // nobody walks into you: close by, people step out of your way (they never just freeze, which could box you in)
       // while you are at (or nearly at) the tea house, everyone keeps out of the space in front of it, moving off to the side
       // away from the keeper (Tom: someone passing awkwardly close there, with no bow, felt off)
-      if ((this.state === 'offering' || p.z > OFFER_FROM - 8) && inTeaClear(q.x, q.z, 0.5)) {
-        const oz = q.z - TEA_CLEAR.z;
-        q.x -= TEA.side * 1.1 * dt;                                         // across, to the far side of the path from the keeper
-        q.z += (Math.sign(oz) || 1) * 0.5 * dt; q.step += 1.1 * dt * 1.4;
-        if (q.kind === 'stand') { q.tx = q.x; q.tz = q.z; q.homeX = q.x; q.homeZ = q.z; }
+      // passers-by keep to the far side of the path all the way past the tea house (always, not only once you are there)
+      if (q.kind === 'walk' && Math.abs(q.z - TEA_CLEAR.z) < TEA_CLEAR.r + 4) {
+        const lane = FAR_LANE(q.z);
+        q.x += clamp(lane - q.x, -1, 1) * 0.9 * dt;
+      }
+      // (and should anyone lingering ever end up in the clear space, they wander off to the far side)
+      if (q.kind === 'stand' && inTeaClear(q.x, q.z, 0.5)) {
+        q.x -= TEA.side * 1.1 * dt; q.step += 1.1 * dt * 1.4;
+        q.tx = q.x; q.tz = q.z; q.homeX = q.x; q.homeZ = q.z;
         continue;
       }
       const ax = q.x - p.x, az = q.z - p.z, ad = Math.hypot(ax, az), near = playing && ad < 1.6;
@@ -409,7 +415,8 @@ export class Garden {
           const nz = q.vz < 0 ? p.z + 55 + r() * 40 : p.z + 25 + r() * 30;
           // (near the end of the stroll there's no room up the path: they set off from beyond the far trees instead)
           const z2 = nz < PATH_END + 25 ? nz : PATH_END + 45 + r() * 25;
-          q.z = z2; q.x = pathX(z2) + (r() - 0.5) * 5; q.bowed = false; q.dress = Math.floor(r() * 30);
+          q.z = z2; q.x = Math.abs(z2 - TEA_CLEAR.z) < TEA_CLEAR.r + 4 ? FAR_LANE(z2) : pathX(z2) + (r() - 0.5) * 5;
+          q.bowed = false; q.dress = Math.floor(r() * 30);
         }
       } else {
         // lingering: wait a while, then wander a few steps to a new spot near where they were, and admire from there
