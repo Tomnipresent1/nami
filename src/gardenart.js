@@ -3,7 +3,7 @@
 // and petals blowing through the air. A paper-theatre camera: everything is a flat painted cut-out standing in the garden, and the
 // camera follows behind and above you, so the cut-outs slide past and grow as you walk in. This file only draws.
 import { VH, clamp } from './ocean.js';
-import { pathX, HUTS, KAGO, POND, TREE_KINDS, pickButton, KEEPER, VASE, TABLE, GTUNE, GARDEN_PAUSE_ROWS, G_FINGER_OPTS, STROLL_CHOICES, DONE_CHOICES, DONE_WAIT } from './garden.js';
+import { pathX, HUTS, KAGO, SHOW_KAGO, POND, TREE_KINDS, pickButton, KEEPER, VASE, TABLE, GTUNE, GARDEN_PAUSE_ROWS, G_FINGER_OPTS, STROLL_CHOICES, DONE_CHOICES, DONE_WAIT } from './garden.js';
 import { CHOICE_WAIT } from './choice.js';
 import { createUI, inked, INK, MUTED } from './ui.js';
 import { BUILD } from './version.js';
@@ -391,22 +391,44 @@ export function createGardenArt(canvas) {
   // ---------- the tea house ending ----------
   const smoother = (u) => { u = clamp(u, 0, 1); return u * u * u * (u * (u * 6 - 15) + 10); };   // eases in and out, softly
   const lerp3 = (a, b, u, arc = 0) => [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u + Math.sin(u * Math.PI) * arc, a[2] + (b[2] - a[2]) * u];
-  /** The vase (always on the table) and, while she puts her blossom in, the handful on its way from her basket to the vase. */
+  // ikebana (v3.15): three stems, set one at a time: shin (tall, heaven), soe (middle, leaning, person), hikae (low, earth),
+  // making an uneven triangle with space around it. [angle from straight up (radians), length]
+  const STEMS = [[0.24, 0.62], [-0.78, 0.44], [1.15, 0.29]];
+  const stemBlossoms = (i, total, stems) => Math.floor(total / stems) + (i < total % stems ? 1 : 0);
+  /** The vase (always on the table), how many stems are in it, and the stem in her hand on its way to the vase. */
   function teaScene(sim, p) {
-    const o = sim.offer, out = { vase: { pos: [VASE.x, VASE.y, VASE.z], count: sim.vase, alpha: 1 }, handful: null, basketLeft: sim.basket };
+    const o = sim.offer, out = { vase: { pos: [VASE.x, VASE.y, VASE.z], count: sim.vase, stems: 0, total: sim.basket, alpha: 1 }, stem: null, basketLeft: sim.basket };
     if (!o || !sim.handedOver) return out;
-    const moved = o.moved || 0;
-    let inFlight = 0;
-    if (o.phase === 'fill') {
-      const u = clamp(o.t / GTUNE.tea.fill, 0, 1), half = Math.ceil(sim.basket / 2), handful = o.fill === 1 ? half : sim.basket - half;
-      if (u > 0.2 && u < 0.7) {
-        const v = smoother((u - 0.2) / 0.5);
-        out.handful = { pos: lerp3([p.x + 0.32, 0.5, p.z], [VASE.x, VASE.y + 0.32, VASE.z], v, 0.25), alpha: 1 };
-        inFlight = handful;
+    out.vase.stems = o.placed || 0;
+    let inHand = 0;
+    if (o.phase === 'arrange') {
+      const u = clamp(o.t / GTUNE.tea.stem, 0, 1), i = o.stem - 1;
+      if (u > 0.12 && u < 0.65) {
+        // she lifts the stem from her basket and sets it in the vase, turning it to its place as it goes in
+        const v = smoother((u - 0.12) / 0.53), spec = STEMS[i];
+        out.stem = { pos: lerp3([p.x + 0.32, 0.55, p.z], [VASE.x, VASE.y + 0.27, VASE.z], v, 0.2), angle: spec[0] * v + 1.2 * (1 - v), len: spec[1],
+          blossoms: stemBlossoms(i, sim.basket, o.stems) };
+        inHand = out.stem.blossoms;
       }
     }
-    out.basketLeft = Math.max(0, sim.basket - moved - inFlight);
+    out.basketLeft = Math.max(0, sim.basket - (o.moved || 0) - inHand);
     return out;
+  }
+  // one plum branch (its foot at 0,0, in the current units): a gently bent stem with a side twig, starred with blossom
+  function drawBranch(angle, len, blossoms, sway) {
+    ctx.save(); ctx.rotate(angle + sway);
+    ctx.strokeStyle = '#3a2d2a'; ctx.lineCap = 'round';
+    ctx.lineWidth = 0.022; ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(len * 0.12, -len * 0.5, 0.02, -len); ctx.stroke();
+    ctx.lineWidth = 0.014; ctx.beginPath(); ctx.moveTo(len * 0.05, -len * 0.55); ctx.lineTo(len * 0.3, -len * 0.78); ctx.stroke();   // a side twig
+    const spots = [[0.02, -1], [0.3, -0.78], [0.08, -0.82], [0.2, -0.68], [0.06, -0.62], [0.1, -0.45], [0.14, -0.9], [0.0, -0.32]];
+    for (let k = 0; k < Math.min(spots.length, blossoms + 1); k++) {
+      const [bx, by] = spots[k], x = bx * len, y = by * len;
+      if (k === blossoms) { ctx.fillStyle = '#3a2d2a'; ctx.beginPath(); ctx.arc(x, y, 0.015, 0, Math.PI * 2); ctx.fill(); continue; }   // a bud at the tip
+      ctx.fillStyle = '#fdf8f0'; ctx.beginPath(); ctx.arc(x, y, 0.045, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(90,60,60,0.5)'; ctx.lineWidth = 0.006; ctx.stroke();
+      ctx.fillStyle = '#e09a9a'; ctx.beginPath(); ctx.arc(x, y, 0.015, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
   }
   // the small round table in front of the tea house: a round top on a single turned leg
   function drawTable() {
@@ -423,15 +445,14 @@ export function createGardenArt(canvas) {
     ctx.restore();
   }
   // the vase on the tea house's counter, holding the blossom she has handed over (it fills up over the strolls)
-  function drawVase(p, count, time, wind) {
+  function drawVase(p, v, time, wind) {
     const s = p[2];
     ctx.save(); ctx.globalAlpha *= fadeFor(p[3], p[4]); ctx.translate(p[0], p[1]); ctx.scale(s, s);
-    // the sprigs she gathered, standing up out of the vase and fanning out: the same twigs of round white blossom with pink hearts
-    // as on the grass (v3.12, Tom: they had turned into thin sticks with dots), swaying just a little
-    const n = Math.min(count, 14);
-    for (let i = 0; i < n; i++) {
-      const a = -Math.PI / 2 + (((i * 0.618) % 1) - 0.5) * 1.5 + Math.sin(time * 1.3 + i) * 0.03 * wind, half = 0.24 * (0.85 + ((i * 0.37) % 1) * 0.3);
-      sprigShape(Math.cos(a) * half, -0.27 + Math.sin(a) * half, half / 0.28, a, 1);   // one end of each twig in the vase's mouth
+    // the stems she has set so far, rising from the vase's mouth (ikebana: tall, middle, low), swaying just a little
+    for (let i = 0; i < v.stems; i++) {
+      ctx.save(); ctx.translate(0, -0.27);
+      drawBranch(STEMS[i][0], STEMS[i][1], stemBlossoms(i, v.total, Math.min(3, v.total)), Math.sin(time * 1.2 + i * 2) * 0.025 * wind);
+      ctx.restore();
     }
     // the vase: blue and white porcelain
     ctx.fillStyle = '#e8eef0'; ctx.beginPath(); ctx.moveTo(-0.05, -0.3); ctx.quadraticCurveTo(-0.16, -0.15, -0.09, 0); ctx.lineTo(0.09, 0); ctx.quadraticCurveTo(0.16, -0.15, 0.05, -0.3); ctx.closePath(); ctx.fill();
@@ -587,7 +608,7 @@ export function createGardenArt(canvas) {
     for (const t of sim.garden.trees) { const q = project(t.x, 0, t.z); if (q && q[3] < 230 && q[0] > -900 && q[0] < W + 900) list.push([q[3], 'tree', t, q]); }
     for (const h of HUTS) { const q = project(h.x, 0, h.z); if (q && q[3] < 230) list.push([q[3], 'hut', h, q]); }
     for (const f of sim.garden.fences) { const q = project(f.x, 0, f.z); if (q && q[3] < 120 && q[0] > -400 && q[0] < W + 400) list.push([q[3], 'fence', f, q]); }
-    { const q = project(KAGO.x, 0, KAGO.z); if (q && q[3] < 230) list.push([q[3], 'kago', KAGO, q]); }
+    if (SHOW_KAGO) { const q = project(KAGO.x, 0, KAGO.z); if (q && q[3] < 230) list.push([q[3], 'kago', KAGO, q]); }
     for (const o of sim.people) { const q = project(o.x, 0, o.z); if (q && q[3] < 200) list.push([q[3], 'person', o, q]); }
     if (showYou) { const q = project(p.x, 0, p.z); if (q) list.push([q[3], 'you', p, q]); }
     // ---- the tea house: the counter, the keeper behind it, her basket and the vase on it (all eased in and out, nothing pops) ----
@@ -599,7 +620,7 @@ export function createGardenArt(canvas) {
       if (q && c) list.push([Math.min(q[3], c[3]) - 0.02, kind, data, q]);
     };
     onTable('vase', tea.vase.pos, tea.vase);
-    if (tea.handful) onTable('handful', tea.handful.pos, tea.handful);
+    if (tea.stem) onTable('stem', tea.stem.pos, tea.stem);
     list.sort((a, b) => b[0] - a[0]);
     for (const [, kind, o, q] of list) {
       if (kind !== 'you' && (kind === 'person' ? fadePerson(q[3]) : fadeFor(q[3], q[4])) < 0.02) continue;
@@ -612,8 +633,8 @@ export function createGardenArt(canvas) {
       else if (kind === 'table') drawTable();
       else if (kind === 'keeper') drawPerson(q, { robe: '#3a4a5c', haori: '#24262d', obi: '#ece6d6', front: true, step: 0,     // the keeper: a man in a dark haori
         bow: o.bowT > 0 ? Math.sin((o.bowT / GTUNE.bowSecs) * Math.PI) : 0, look: 0, idle: Math.sin(time * 0.6) * 0.5 });
-      else if (kind === 'vase') { ctx.save(); ctx.globalAlpha = o.alpha; drawVase(q, o.count, time, sim.wind); ctx.restore(); }
-      else if (kind === 'handful') { ctx.save(); ctx.globalAlpha = o.alpha; sprigShape(q[0], q[1], q[2] * 0.9, -0.5, 1); ctx.restore(); }
+      else if (kind === 'vase') { ctx.save(); ctx.globalAlpha = o.alpha; drawVase(q, o, time, sim.wind); ctx.restore(); }
+      else if (kind === 'stem') { ctx.save(); ctx.translate(q[0], q[1]); ctx.scale(q[2], q[2]); drawBranch(o.angle, o.len, o.blossoms, 0); ctx.restore(); }
       else drawPerson(q, { robe: YOU, obi: '#e8d9b0', front: false, step: o.step, bow: Math.max(o.bow, Math.min(1, o.pick * 1.25)), alpha: o.fade, look: o.look,
         basket: tea.basketLeft, ornament: true });                       // (she keeps her basket; it empties into the vase)
     }

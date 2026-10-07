@@ -31,7 +31,8 @@ export const GTUNE = {
   inkPick: 1.5,
   inkGift: 3,              // for handing your basket to the tea-house keeper
   // the tea-house ending, unhurried: seconds for each part (v3.11, Tom: the pause before the bow was too long)
-  tea: { settle: 0.05, fill: 1.7, linger: 1.6 },
+  // v3.15 (Tom): after the bow she arranges the vase like ikebana: three stems, one at a time (~1 s each), then a moment to regard it
+  tea: { settle: 0.05, stem: 1.0, regard: 0.9, linger: 1.6 },
   aimLead: 0.25,           // how far ahead of you the finger can get (small = reversing answers at once)
 };
 // finger speed (as on the bridge): picture units of finger travel per unit of sideways step, and top sideways speed
@@ -77,6 +78,8 @@ const inTeaClear = (x, z, pad = 0) => Math.hypot(x - TEA_CLEAR.x, z - TEA_CLEAR.
 // the kago stands just beside where you begin, so at the start it is big and cropped by the right edge, framing the view as in the print
 // (v3.13, Tom: its top was too close and got in the way of the view; moved further right so it frames the edge instead)
 export const KAGO = { x: pathX(-5) + 5.3, z: -5, hw: 1.5, hd: 0.8 };
+// v3.15 (Tom): trying the opening without the kago, with a big plum tree standing in its place. true = bring the kago back.
+export const SHOW_KAGO = false;
 export const POND = { x0: -22, x1: -9.5, z0: 30, z1: 62 };
 
 export const TREE_KINDS = 8;                 // different painted trees (each with its own trunk tone and blossom)
@@ -85,13 +88,15 @@ export function buildGarden() {
   const r = mulberry32(1857);                // the year of the print
   const trees = [], fences = [];
   const clear = (x, z, pad) => HUTS.every((h) => Math.abs(x - h.x) > h.hw + pad || Math.abs(z - h.z) > h.hd + pad)
-    && (Math.abs(x - KAGO.x) > KAGO.hw + pad || Math.abs(z - KAGO.z) > KAGO.hd + pad)
+    && (Math.abs(x - KAGO.x) > KAGO.hw + pad || Math.abs(z - KAGO.z) > KAGO.hd + pad)       // (kept clear either way: kago, or its tree)
     && !(x > POND.x0 - 1 && x < POND.x1 + 1 && z > POND.z0 - 1 && z < POND.z1 + 1);
   const tree = (x, z, extra = {}) => ({ x, z, r: 0.6, kind: Math.floor(r() * TREE_KINDS), seed: r() * 100,
     size: 0.82 + r() * 0.42, flip: r() < 0.5, ...extra });       // every tree a little different: size, mirrored or not
   // you start enclosed on both sides (Tom: there was open space to the left at the start): the kago on the right, and on the left
   // a big trunk cropped by the screen's edge, like the print's left-hand tree, with more close behind it
   for (const [dx, z] of [[-4.4, -9], [-6.6, -3], [-7.2, 4], [-9.5, 9], [6.8, 2], [8.5, 8]]) trees.push(tree(pathX(z) + dx, z, { edge: true }));
+  // without the kago, a big plum tree stands where it was, its trunk framing the right edge of the opening view
+  if (!SHOW_KAGO) trees.push(tree(KAGO.x - 0.3, KAGO.z, { edge: true, size: 1.2 }));
   // the garden starts well behind where you begin, so you start in the middle of it, not walking up to it (Tom)
   for (let z = -45; z < 330; z += 2 + r() * 3.5) {
     // beyond the end of the stroll the orchard closes across the path, so the avenue never opens onto a bare horizon (Tom)
@@ -449,7 +454,7 @@ export class Garden {
     o.t += dt;
     if (p.bowT > 0) { p.bowT -= dt; p.bow = Math.sin(clamp(1 - p.bowT / T.bowSecs, 0, 1) * Math.PI); } else p.bow = 0;
     // (while she puts blossom in the vase, she leans gently toward the table)
-    p.pick = o.phase === 'fill' ? 0.4 * Math.sin(Math.PI * clamp(o.t / T.tea.fill, 0, 1)) : 0; p.v = 0;
+    p.pick = o.phase === 'arrange' ? 0.3 * Math.sin(Math.PI * clamp(o.t / T.tea.stem, 0, 1)) : 0; p.v = 0;
     p.look += (0 - p.look) * Math.min(1, dt * 3);
     const S = T.tea, next = (phase) => { o.phase = phase; o.t = 0; };
     if (o.phase === 'walk') {
@@ -466,17 +471,22 @@ export class Garden {
       next('bow'); p.bowT = T.bowSecs; this.keeper.bowT = T.bowSecs;
       if (scoring) this.say('bow');
     } else if (o.phase === 'bow' && o.t >= T.bowSecs + 0.2) {
-      if (this.basket > 0) { next('fill'); o.fill = 1; o.moved = 0; this.handedOver = true; if (scoring) this.say('give', { n: this.basket }); }
-      else next('linger');                                               // nothing to give: the bow was enough
-    } else if (o.phase === 'fill') {
-      // she puts the blossom into the vase herself, in two gentle movements: the vase fills as each lands
-      const half = Math.ceil(this.basket / 2), handful = o.fill === 1 ? half : this.basket - half;
-      if (o.t >= S.fill * 0.7 && !o.landed) { o.landed = true; this.vase += handful; o.moved += handful; }
-      if (o.t >= S.fill) {
+      if (this.basket > 0) {
+        next('arrange'); o.stem = 1; o.stems = Math.min(3, this.basket); o.placed = 0; o.moved = 0; this.handedOver = true;
+        if (scoring) this.say('give', { n: this.basket });
+      } else next('linger');                                             // nothing to give: the bow was enough
+    } else if (o.phase === 'arrange') {
+      // ikebana: she places the stems one at a time, tall (shin), middle (soe), low (hikae); her gathered blossom is shared
+      // between them, so more gathered = fuller branches
+      const share = Math.floor(this.basket / o.stems) + (o.stem <= this.basket % o.stems ? 1 : 0);
+      if (o.t >= S.stem * 0.65 && !o.landed) { o.landed = true; o.placed++; this.vase += share; o.moved += share; if (scoring) this.say('stem', { n: o.placed }); }
+      if (o.t >= S.stem) {
         o.landed = false;
-        if (o.fill === 1 && this.basket > 1) { o.fill = 2; o.t = 0; }
-        else { if (scoring) this.addInk(T.inkGift); next('linger'); }
+        if (o.stem < o.stems) { o.stem++; o.t = 0; }
+        else { if (scoring) this.addInk(T.inkGift); next('regard'); }
       }
+    } else if (o.phase === 'regard' && o.t >= S.regard) {           // a moment of stillness to look at what she has made
+      next('linger');
     } else if (o.phase === 'linger' && o.t >= S.linger) {
       this.stats.strolls++;
       this.arrivedT = 0; this.choice = 0;
@@ -532,7 +542,7 @@ export class Garden {
     for (const t of this.garden.trees) if (Math.abs(t.z - p.z) < 2 && Math.abs(t.x - p.x) < 2) pushCircle(t.x, t.z, t.r);
     for (const h of HUTS) if (Math.abs(h.z - p.z) < h.hd + 1) pushBox(h);
     if (Math.abs(TABLE.z - p.z) < 2) pushCircle(TABLE.x, TABLE.z, TABLE.r);
-    if (Math.abs(KAGO.z - p.z) < 2) pushBox(KAGO);
+    if (SHOW_KAGO && Math.abs(KAGO.z - p.z) < 2) pushBox(KAGO);
     for (const q of this.people) if (Math.abs(q.z - p.z) < 1.5) pushCircle(q.x, q.z, 0.4);
     // walking straight into something: drift gently round it toward the side with more room, so you are never stuck
     if (hit != null && walking) {
