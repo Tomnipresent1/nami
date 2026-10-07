@@ -63,7 +63,9 @@ export const HUTS = [
 // blossom on it, and the keeper (a man, in a dark haori) at the tea house's front. The stroll closes there: she arrives, bows to
 // him (he bows back), then puts the blossom she gathered into the vase herself, in two gentle movements; a moment, then the fade.
 export const TEA = HUTS[1];
-export const TABLE = { x: TEA.x - TEA.hw - 0.3, z: TEA.z - TEA.hd - 1.3, r: 0.45, top: 0.58 };
+// (v3.19: a step further from the tea house, so from the camera the blossom is seen against the garden's green, not the hut's
+//  dark front)
+export const TABLE = { x: TEA.x - TEA.hw - 1.2, z: TEA.z - TEA.hd - 1.3, r: 0.45, top: 0.58 };
 export const KEEPER = { x: TEA.x - TEA.hw + 0.9, z: TEA.z - TEA.hd - 0.25 };             // at the front of the tea house
 export const OFFER_SPOT = { x: TABLE.x - 0.55, z: TABLE.z - 0.8 };                       // where she stands, just in front of the table
 export const VASE = { x: TABLE.x, y: TABLE.top, z: TABLE.z };                            // on the table
@@ -73,6 +75,16 @@ export const OFFER_FROM = OFFER_SPOT.z - 5;            // walking this far in, s
 // (v3.14, Tom: two people still stood near the table and faded as she arrived: the space is bigger, and kept clear from the start)
 export const TEA_CLEAR = { x: (OFFER_SPOT.x + KEEPER.x) / 2, z: (OFFER_SPOT.z + KEEPER.z) / 2, r: 7 };
 const FAR_LANE = (z) => pathX(z) - TEA.side * 3.3;      // passers-by keep to this side of the path as they pass the tea house
+// The strip of garden that shows BEHIND the vase in the final shot (as the camera sees it from where it settles): nobody stands
+// or walks there, so the blossom has clean green behind it (v3.19, Tom). Narrow at the vase, widening with distance.
+const FINAL_CAM = { x: (OFFER_SPOT.x + KEEPER.x) / 2, z: OFFER_SPOT.z - 19.5 };
+export function behindVase(x, z, pad = 0) {
+  if (z < VASE.z + 0.4) return false;
+  const t = (z - FINAL_CAM.z) / (VASE.z - FINAL_CAM.z);
+  if (t > 2.4 + pad * 0.2) return false;                           // much further off, people are small and well above the blossom
+  const rayX = FINAL_CAM.x + (VASE.x - FINAL_CAM.x) * t;
+  return Math.abs(x - rayX) < 0.9 * t + 0.6 + pad;
+}
 const inTeaClear = (x, z, pad = 0) => Math.hypot(x - TEA_CLEAR.x, z - TEA_CLEAR.z) < TEA_CLEAR.r + pad;
 
 // the kago stands just beside where you begin, so at the start it is big and cropped by the right edge, framing the view as in the print
@@ -190,10 +202,12 @@ export class Garden {
       face: r() < 0.6, ...extra });
     for (let z = 3; z < PATH_END + 30; z += 6 + r() * 7) {           // (from just ahead of you: anyone behind you would be right in front of the camera)
       const side = r() < 0.5 ? -1 : 1, x = pathX(z) + side * (2 + r() * 6);
-      if (inTeaClear(x, z, 3) || nearSprig(x, z, 2.2)) continue;            // nobody lingers anywhere near the tea house, or on fallen blossom
+      // nobody lingers anywhere near the tea house, on fallen blossom, or where they'd stand behind the vase in the final shot
+      const keepOff = (px, pz) => inTeaClear(px, pz, 3) || nearSprig(px, pz, 2.2) || behindVase(px, pz);
+      if (keepOff(x, z)) continue;
       this.people.push(person('stand', x, z));
       // often in pairs, admiring the blossom together
-      if (r() < 0.45 && !inTeaClear(x + side * 0.8, z + 0.4, 3) && !nearSprig(x + side * 0.8, z + 0.4, 2.2)) this.people.push(person('stand', x + side * 0.8, z + 0.4));
+      if (r() < 0.45 && !keepOff(x + side * 0.8, z + 0.4)) this.people.push(person('stand', x + side * 0.8, z + 0.4));
     }
     for (let k = 0; k < 7; k++) {
       const z = 20 + k * 28 + r() * 12, away = k % 3 === 1;
@@ -399,6 +413,11 @@ export class Garden {
         const lane = FAR_LANE(q.z);
         q.x += clamp(lane - q.x, -1, 1) * 0.9 * dt;
       }
+      // passers-by step out of the strip behind the vase well before you get there (sideways, the shorter way out)
+      if (q.kind === 'walk' && p.z > OFFER_FROM - 30 && behindVase(q.x, q.z, 1.2)) {           // (with a margin: they steer clear before they reach it)
+        const t = (q.z - FINAL_CAM.z) / (VASE.z - FINAL_CAM.z), rayX = FINAL_CAM.x + (VASE.x - FINAL_CAM.x) * t;
+        q.x += (q.x < rayX ? -1 : 1) * 1.2 * dt;
+      }
       // (and should anyone lingering ever end up in the clear space, they wander off to the far side)
       if (q.kind === 'stand' && inTeaClear(q.x, q.z, 0.5)) {
         q.x -= TEA.side * 1.1 * dt; q.step += 1.1 * dt * 1.4;
@@ -434,7 +453,7 @@ export class Garden {
           q.tx = q.homeX + (r() - 0.5) * 5; q.tz = q.homeZ + (r() - 0.5) * 4; q.wait = 4 + r() * 8;
           const off = q.tx - pathX(q.tz);                                    // they keep to the sides, off the middle of the path
           if (Math.abs(off) < 2.2) q.tx = pathX(q.tz) + (Math.sign(off) || 1) * 2.2;
-          if (inTeaClear(q.tx, q.tz, 1) || this.nearSprig(q.tx, q.tz, 1.8)) { q.tx = q.x; q.tz = q.z; }   // never wander to the tea house or onto blossom
+          if (inTeaClear(q.tx, q.tz, 1) || this.nearSprig(q.tx, q.tz, 1.8) || behindVase(q.tx, q.tz)) { q.tx = q.x; q.tz = q.z; }   // never wander to the tea house, onto blossom, or behind the vase
           if (r() < 0.3) { q.tx = q.x; q.tz = q.z; q.face = !q.face; }     // or just turn round to look the other way
         }
       }
