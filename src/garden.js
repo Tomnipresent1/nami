@@ -8,7 +8,8 @@ import { clamp } from './ocean.js';
 import { MIN_W, MAX_W, PAUSE_Y0, PAUSE_DY } from './sim.js';
 import { CHOICE_WAIT, readChoice } from './choice.js';
 
-export const PATH_END = 200;                 // just beyond the third hut
+// just beyond the second hut: about 1½ minutes' stroll (Tom, v3.8: it was too long at 200, beyond the third hut, ~2½ min)
+export const PATH_END = 120;
 export const HALF = 5.5;                     // how far either side of the path you may wander
 /** The path's middle at distance z: it meanders gently. */
 export const pathX = (z) => 1.6 * Math.sin(z / 37) + 0.8 * Math.sin(z / 13 + 1);
@@ -21,10 +22,10 @@ export const GTUNE = {
   bowNear: 1.8,            // pass this close to someone and you both bow
   bowSecs: 1.4,
   bowGap: 9,               // at least this long between bows (so a busy garden doesn't keep stopping you)
-  inkPerUnit: 0.15,        // ink for each unit walked (one stroll ~ 30)
+  inkPerUnit: 0.2,         // ink for each unit walked (one stroll ~ 24)
   inkBow: 1.5,
   // gathering fallen sprigs of plum blossom into her basket (Tom's wife's idea, 2026-10-07)
-  sprigs: 15,              // about this many along each stroll
+  sprigs: 10,              // about this many along each stroll (as many per minute as before; the stroll is shorter now)
   reach: 1.4,              // how close one must be to pick it
   pickSecs: 1.6,           // she stops, bends, picks it up and puts it in her basket
   inkPick: 1.5,
@@ -52,7 +53,7 @@ export const onPickButton = (x, y, W) => { const [cx, cy, r] = pickButton(W); re
 export const HUTS = [
   { z: 55, side: -1, double: true },         // the two thatched huts together, as in the print
   { z: 110, side: 1, double: false },
-  { z: 165, side: -1, double: false },        // the third hut: the stroll ends just beyond it
+  { z: 165, side: -1, double: false },        // the third hut, glimpsed through the trees beyond the end of the stroll
 ].map((h) => ({ ...h, x: pathX(h.z) + h.side * (h.double ? 9.2 : 7.6), hw: h.double ? 5 : 3.2, hd: 2.4 }));
 // the kago stands just beside where you begin, so at the start it is big and cropped by the right edge, framing the view as in the print
 export const KAGO = { x: pathX(-5) + 3.4, z: -5, hw: 1.5, hd: 0.8 };
@@ -127,6 +128,9 @@ export class Garden {
     this.message = null;
     this.wind = 0.5;
     this.chimeIn = 4; this.birdIn = 12;
+    // mejiro (Japanese white-eyes), the little green bird of the plum blossom, flitting across the picture now and then (Tom).
+    // They live in picture units (x across, y down) since they only cross the screen; the painting draws them.
+    this.birds = []; this.flitIn = 6 + this.rand() * 6;
     this.newStroll();
   }
   newStroll() {
@@ -215,7 +219,7 @@ export class Garden {
       return;
     }
     if (this.state === 'arrived') {
-      // beyond the third hut: you fade away; walk again, or back to the album
+      // beyond the second hut: you fade away; walk again, or back to the album
       this.arrivedT += dt;
       this.stepWorld(dt, {}, false);
       if (this.arrivedT < CHOICE_WAIT + 0.8) return;
@@ -262,6 +266,7 @@ export class Garden {
     this.wind = clamp(0.4 + 0.22 * Math.sin(this.t * 0.13) + 0.5 * Math.max(0, Math.sin(this.t * 0.31 + 2)) ** 4, 0.15, 1);
     if ((this.chimeIn -= dt * (0.6 + this.wind)) <= 0) { this.say('chime', { n: 2 + Math.floor(this.rand() * 3) }); this.chimeIn = 7 + this.rand() * 10; }
     if ((this.birdIn -= dt) <= 0) { this.say('bird'); this.birdIn = 25 + this.rand() * 25; }
+    this.stepBirds(dt);
 
     // ---- you ----
     if (playing) {
@@ -379,6 +384,29 @@ export class Garden {
       }
     }
     this.inkShown += (this.ink - this.inkShown) * Math.min(1, dt * 1.6);
+  }
+
+  /** Mejiro: one, or a pair, flit across every 15-35 s in little bursts of wingbeats with short dipping glides between. */
+  stepBirds(dt) {
+    const r = this.rand;
+    if ((this.flitIn -= dt) <= 0) {
+      this.flitIn = 15 + r() * 20;
+      const dir = r() < 0.5 ? 1 : -1, y = 70 + r() * 220, speed = 150 + r() * 70, size = 0.8 + r() * 0.5;
+      const n = r() < 0.35 ? 2 : 1;
+      for (let i = 0; i < n; i++) this.birds.push({ x: dir > 0 ? -40 - i * 70 : this.W + 40 + i * 70, y: y + i * (r() - 0.5) * 50, base: y, dir, speed, size: size * (1 - i * 0.1),
+        phase: r() * 6, flap: 0, wingT: r() });
+      this.say('flit');
+    }
+    for (const b of this.birds) {
+      b.phase += dt;
+      // bounding flight: flap for a moment (rising a little), then fold the wings and dip
+      const cycle = (b.phase * 1.6) % 1, flapping = cycle < 0.55;
+      b.flap = flapping ? Math.sin(b.phase * 55) : -0.9;
+      b.y += (flapping ? -22 : 34) * dt + Math.sin(b.phase * 2) * 4 * dt;
+      b.y += (b.base - b.y) * Math.min(1, dt * 0.6);           // drifts back toward its line, so it never climbs or falls away
+      b.x += b.dir * b.speed * (flapping ? 1.05 : 0.9) * dt;
+    }
+    this.birds = this.birds.filter((b) => b.x > -150 && b.x < this.W + 150);
   }
 
   /** Keep you out of trees, huts, the kago and people: you slide round them, never through. */

@@ -271,6 +271,30 @@ export function createGardenArt(canvas) {
     ctx.drawImage(sp.c, p[0] - (sp.w * s) / 2, p[1] - sp.h * s, sp.w * s, sp.h * s);
     ctx.restore();
   }
+  // ---------- mejiro: little olive-green birds with a white ring round the eye ----------
+  function drawBirds(sim) {
+    for (const b of sim.birds || []) {
+      const s = 20 * b.size;                                    // (big enough to read as a bird on a phone)
+      ctx.save(); ctx.translate(b.x, b.y); ctx.scale(b.dir * s, s);
+      // far wing first, then body, then near wing
+      const wing = (sign) => {
+        const tipY = -b.flap * 1.1 * sign;
+        ctx.fillStyle = '#5f6f2c'; ctx.beginPath(); ctx.moveTo(-0.2, -0.15); ctx.quadraticCurveTo(-0.6, tipY - 0.2, -1.15, tipY); ctx.lineTo(0.25, -0.05); ctx.closePath(); ctx.fill();
+      };
+      ctx.globalAlpha = 0.75; wing(-0.6); ctx.globalAlpha = 1;
+      ctx.fillStyle = '#7d8c35'; ctx.beginPath(); ctx.ellipse(0, 0, 0.75, 0.38, -0.1, 0, Math.PI * 2); ctx.fill();          // body
+      ctx.beginPath(); ctx.moveTo(-0.6, 0.02); ctx.lineTo(-1.25, -0.08); ctx.lineTo(-1.2, 0.14); ctx.closePath(); ctx.fill();   // tail
+      ctx.fillStyle = '#d8d2a4'; ctx.beginPath(); ctx.ellipse(0.1, 0.17, 0.48, 0.17, -0.1, 0, Math.PI * 2); ctx.fill();       // pale belly
+      ctx.fillStyle = '#c9c247'; ctx.beginPath(); ctx.ellipse(0.55, 0.08, 0.2, 0.16, 0, 0, Math.PI * 2); ctx.fill();          // yellow throat
+      ctx.fillStyle = '#7d8c35'; ctx.beginPath(); ctx.arc(0.62, -0.14, 0.27, 0, Math.PI * 2); ctx.fill();                     // head
+      ctx.fillStyle = '#fbfaf2'; ctx.beginPath(); ctx.arc(0.7, -0.17, 0.11, 0, Math.PI * 2); ctx.fill();                      // the white eye-ring
+      ctx.fillStyle = '#1d1a1c'; ctx.beginPath(); ctx.arc(0.71, -0.17, 0.055, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(0.86, -0.13); ctx.lineTo(1.08, -0.08); ctx.lineTo(0.86, -0.04); ctx.closePath(); ctx.fill(); // beak
+      wing(1);
+      ctx.restore();
+    }
+  }
+
   // ---------- fallen blossom, the basket, the pick button ----------
   function sprigShape(sx, sy, s, angle, flat) {
     // a little twig of plum blossom lying on the grass (flattened, since it lies on the ground)
@@ -453,7 +477,7 @@ export function createGardenArt(canvas) {
   function drawArrived(sim) {
     const a = clamp((sim.arrivedT - 0.8) / 0.7, 0, 1);
     ctx.globalAlpha = a * 0.5; ctx.fillStyle = '#f4e7d6'; ctx.fillRect(0, 0, W, VH); ctx.globalAlpha = a;
-    ui.text('BEYOND THE THIRD HUT', W / 2, 205, 40, INK, 'center', 'bold');
+    ui.text('BEYOND THE SECOND HUT', W / 2, 205, 40, INK, 'center', 'bold');
     ui.text(sim.basket > 0 ? 'YOU GATHERED ' + sim.basket + (sim.basket === 1 ? ' SPRIG' : ' SPRIGS') + ' OF BLOSSOM'
       : sim.stats.strolls === 1 ? 'A STROLL THROUGH THE PLUM GARDEN' : 'STROLL ' + sim.stats.strolls + ' COMPLETE', W / 2, 256, 20, MUTED, 'center');
     ctx.globalAlpha = 1;
@@ -512,6 +536,7 @@ export function createGardenArt(canvas) {
         basket: sim.basket, ornament: true });
     }
 
+    drawBirds(sim);
     drawPetals(sim.paused ? 0 : dt, sim.wind, showYou && p.v > 0.1 ? 1 : 0);
     ui.paperGrain(W);
     if (uiState.bare) return;
