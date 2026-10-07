@@ -77,12 +77,18 @@ const FAR_LANE = (z) => pathX(z) - TEA.side * 3.3;      // passers-by keep to th
 // The strip of garden that shows BEHIND the vase in the final shot (as the camera sees it from where it settles): nobody stands
 // or walks there, so the blossom has clean green behind it (v3.19, Tom). Narrow at the vase, widening with distance.
 const FINAL_CAM = { x: (OFFER_SPOT.x + KEEPER.x) / 2, z: OFFER_SPOT.z - 19.5 };
+// (v3.21: the camera turns toward the tea house over ~2.5 s as she walks over, so the vase is seen from a range of angles, not
+//  just the final one: the clear strip covers them all. Tom still saw someone walking behind the flowers during that turn.)
+const APPROACH_CAM_X = OFFER_SPOT.x * 0.7 + pathX(OFFER_SPOT.z) * 0.3;     // where the camera is before it starts to turn
 export function behindVase(x, z, pad = 0) {
   if (z < VASE.z + 0.4) return false;
-  const t = (z - FINAL_CAM.z) / (VASE.z - FINAL_CAM.z);
-  if (t > 2.4 + pad * 0.2) return false;                           // much further off, people are small and well above the blossom
-  const rayX = FINAL_CAM.x + (VASE.x - FINAL_CAM.x) * t;
-  return Math.abs(x - rayX) < 0.9 * t + 0.6 + pad;
+  for (const camX of [APPROACH_CAM_X, (APPROACH_CAM_X + FINAL_CAM.x) / 2, FINAL_CAM.x]) {
+    const t = (z - FINAL_CAM.z) / (VASE.z - FINAL_CAM.z);
+    if (t > 3.8 + pad * 0.2) continue;                             // much further off, people are small and well above the blossom
+    const rayX = camX + (VASE.x - camX) * t;
+    if (Math.abs(x - rayX) < 0.9 * t + 0.8 + pad) return true;
+  }
+  return false;
 }
 const inTeaClear = (x, z, pad = 0) => Math.hypot(x - TEA_CLEAR.x, z - TEA_CLEAR.z) < TEA_CLEAR.r + pad;
 
