@@ -560,7 +560,8 @@ export function createGardenArt(canvas) {
     const a = clamp((sim.arrivedT - 0.8) / 0.7, 0, 1);
     ctx.globalAlpha = a * 0.5; ctx.fillStyle = '#f4e7d6'; ctx.fillRect(0, 0, W, VH); ctx.globalAlpha = a;
     ui.text('THE TEA HOUSE', W / 2, 205, 40, INK, 'center', 'bold');
-    ui.text(sim.basket > 0 ? 'YOU GAVE ' + sim.basket + (sim.basket === 1 ? ' SPRIG' : ' SPRIGS') + ' OF BLOSSOM FOR THE VASE'
+    // (v3.17, Tom: no number here; the vase always shows three stems, so "6 sprigs" jarred)
+    ui.text(sim.handedOver ? 'YOU HAVE FILLED THE VASE WITH BLOSSOMS'
       : sim.stats.strolls === 1 ? 'A STROLL THROUGH THE PLUM GARDEN' : 'STROLL ' + sim.stats.strolls + ' COMPLETE', W / 2, 256, 20, MUTED, 'center');
     ctx.globalAlpha = 1;
     ui.choices(STROLL_CHOICES, { W, sel: sim.choice, ready: sim.arrivedT >= CHOICE_WAIT + 0.8, alpha: a });
