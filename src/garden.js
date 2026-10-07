@@ -29,6 +29,8 @@ export const GTUNE = {
   reach: 1.4,              // how close one must be to pick it
   pickSecs: 1.6,           // she stops, bends, picks it up and puts it in her basket
   inkPick: 1.5,
+  inkGift: 3,              // for handing your basket to the tea-house keeper
+  giveSecs: 1.3,           // the basket passing from her hands to the keeper's
   aimLead: 0.25,           // how far ahead of you the finger can get (small = reversing answers at once)
 };
 // finger speed (as on the bridge): picture units of finger travel per unit of sideways step, and top sideways speed
@@ -55,6 +57,14 @@ export const HUTS = [
   { z: 110, side: 1, double: false },
   { z: 165, side: -1, double: false },        // the third hut, glimpsed through the trees beyond the end of the stroll
 ].map((h) => ({ ...h, x: pathX(h.z) + h.side * (h.double ? 9.2 : 7.6), hw: h.double ? 5 : 3.2, hd: 2.4 }));
+// ---- the tea house (Tom, v3.9): the second hut is a chaya; its keeper stands at the front. The stroll ends there: she walks up,
+// they bow, she hands over her basket, and the blossom goes into a vase on the counter (it fills up over the strolls).
+export const TEA = HUTS[1];
+export const KEEPER = { x: TEA.x - TEA.hw + 1.3, z: TEA.z - TEA.hd - 0.15 };
+export const OFFER_SPOT = { x: TEA.x - TEA.hw + 0.35, z: TEA.z - TEA.hd - 0.95 };      // where she stands to hand it over
+export const VASE = { x: TEA.x - TEA.hw + 2.4, y: 0.62, z: TEA.z - TEA.hd + 0.15 };     // on the front of the counter
+export const OFFER_FROM = OFFER_SPOT.z - 5;            // walking this far in, she makes her way over to the tea house by herself
+
 // the kago stands just beside where you begin, so at the start it is big and cropped by the right edge, framing the view as in the print
 export const KAGO = { x: pathX(-5) + 3.4, z: -5, hw: 1.5, hd: 0.8 };
 export const POND = { x0: -22, x1: -9.5, z0: 30, z1: 62 };
@@ -125,10 +135,11 @@ export class Garden {
     this.events = [];
     this.stats = { strolls: 0, bows: 0, walked: 0, picked: 0 };
     this.endless = false; this.completeT = 0; this.choice = 0;
+    this.vase = 0;                   // sprigs in the tea house's vase (it fills up over the strolls)
     this.message = null;
     this.wind = 0.5;
     this.chimeIn = 4; this.birdIn = 12;
-    // mejiro (Japanese white-eyes), the little green bird of the plum blossom, flitting across the picture now and then (Tom).
+    // little birds flitting across the picture now and then (Tom; v3.8 mejiro, v3.9 softer brown/russet and further off).
     // They live in picture units (x across, y down) since they only cross the screen; the painting draws them.
     this.birds = []; this.flitIn = 6 + this.rand() * 6;
     this.newStroll();
@@ -139,6 +150,9 @@ export class Garden {
     this.arrivedT = 0;
     this.basket = 0;                 // sprigs gathered on this stroll
     this.reachable = -1;             // the sprig within reach right now (the pick button shows), or -1
+    this.offer = null;               // the hand-over at the tea house, once it begins: { phase: walk | bow | give | thanks, t }
+    this.handedOver = false;         // the basket has gone to the keeper
+    this.keeper = { x: KEEPER.x, z: KEEPER.z, bowT: 0, head: 0 };
     const r = this.rand;
     // fallen sprigs of plum blossom along the way: never inside a tree, hut or the kago, always on or near the path
     this.sprigs = [];
@@ -238,12 +252,14 @@ export class Garden {
       const r = readChoice(keys, taps, this.W, this.choice);
       if (r.sel !== this.choice) { this.choice = r.sel; this.say('blip'); }
       if (r.chosen >= 0) {
+        if (this.strollDone) { this.strollDone = false; this.newStroll(); }   // (finished at the tea house: the next stroll starts afresh)
         this.state = 'play'; this.endless = true; this.say('blip');
         if (r.chosen === 1) { this.paused = true; this.pauseRow = 0; this.albumRequest = true; }
         else this.msg('THE GARDEN IS YOURS. STROLL ON.', 5);
       }
       return;
     }
+    if (this.state === 'offering') { this.stepWorld(dt, {}, true); return; }     // at the tea house: it plays out by itself
     // the pick button (or the Enter / Space key): gather the sprig within reach
     if (inp.pick || keys.includes('enter') || taps.some((t) => onPickButton(t.x, t.y, this.W))) this.startPick();
     this.stepWorld(dt, inp, true);
@@ -332,13 +348,21 @@ export class Garden {
       }
       if (this.reachable >= 0 && scoring && !this.pickHinted) { this.pickHinted = true; this.msg('FALLEN BLOSSOM: TAP THE GLOWING BUTTON TO GATHER IT', 5); }
 
-      // the end of the stroll
+      // nearly at the tea house: she makes her way over to the keeper by herself
+      if (this.state === 'play' && p.z >= OFFER_FROM && !this.offer) {
+        this.state = 'offering'; this.offer = { phase: 'walk', t: 0 };
+        this.drag = null; this.reachable = -1; p.vx = 0; p.lookTo = 0; this.message = null;
+        return;
+      }
+      // the end of the stroll (only reached this way after the print was finished mid-stroll: carry on from the start)
       if (p.z >= PATH_END) {
         this.stats.strolls++;
         if (this.state === 'play') { this.state = 'arrived'; this.arrivedT = 0; this.choice = 0; this.drag = null; p.v = 0; p.vx = 0; this.reachable = -1; this.say('arrived'); this.message = null; }
         else this.newStroll();                                     // (the print finished on this stroll: carry on from the start)
       }
-    } else if (this.state === 'arrived') p.fade = Math.max(0, p.fade - dt / 1.5);
+    } else if (this.state === 'offering') this.stepOffering(dt, scoring);
+    else if (this.state === 'arrived') p.fade = Math.max(0, p.fade - dt / 1.5);
+    if (this.keeper.bowT > 0) this.keeper.bowT -= dt;
 
     // ---- the other people ----
     const r = this.rand;
@@ -386,12 +410,47 @@ export class Garden {
     this.inkShown += (this.ink - this.inkShown) * Math.min(1, dt * 1.6);
   }
 
+  /** At the tea house: she walks over to the keeper, they bow, she hands over her basket (the blossom goes in the vase), the
+   *  keeper bows her thanks, and the stroll ends. With an empty basket they simply bow. */
+  stepOffering(dt, scoring) {
+    const T = GTUNE, p = this.player, o = this.offer;
+    o.t += dt;
+    if (p.bowT > 0) { p.bowT -= dt; p.bow = Math.sin(clamp(1 - p.bowT / T.bowSecs, 0, 1) * Math.PI); } else p.bow = 0;
+    p.pick = 0; p.v = 0;
+    p.look += (0 - p.look) * Math.min(1, dt * 3);
+    if (o.phase === 'walk') {
+      const dx = OFFER_SPOT.x - p.x, dz = OFFER_SPOT.z - p.z, d = Math.hypot(dx, dz);
+      if (d < 0.05 || o.t > 8) {                                        // (never wander forever: after 8 s she is simply there)
+        p.x = OFFER_SPOT.x; p.z = OFFER_SPOT.z;
+        o.phase = 'bow'; o.t = 0; p.bowT = T.bowSecs; this.keeper.bowT = T.bowSecs;
+        if (scoring) this.say('bow');
+      } else {
+        const sp = Math.min(1.2, d * 2);
+        p.x += (dx / d) * sp * dt; p.z += (dz / d) * sp * dt; p.step += sp * dt * 1.3;
+        this.collide(p, dt, true);
+      }
+    } else if (o.phase === 'bow' && o.t >= T.bowSecs) {
+      if (this.basket > 0) { o.phase = 'give'; o.t = 0; this.handedOver = true; if (scoring) this.say('give', { n: this.basket }); }
+      else { o.phase = 'thanks'; o.t = T.bowSecs * 0.5; }               // nothing to give: just the bow
+    } else if (o.phase === 'give' && o.t >= T.giveSecs) {
+      this.vase += this.basket;
+      if (scoring) this.addInk(T.inkGift);
+      o.phase = 'thanks'; o.t = 0; this.keeper.bowT = T.bowSecs;
+    } else if (o.phase === 'thanks' && o.t >= T.bowSecs) {
+      this.stats.strolls++;
+      this.arrivedT = 0; this.choice = 0;
+      if (this.ink >= 100 && !this.endless) {                          // this stroll finished the print: its own screen instead
+        this.state = 'complete'; this.completeT = 0; this.strollDone = true; this.say('complete'); this.msg('THE PRINT IS COMPLETE', 6);
+      } else { this.state = 'arrived'; this.say('arrived'); }
+    }
+  }
+
   /** Mejiro: one, or a pair, flit across every 15-35 s in little bursts of wingbeats with short dipping glides between. */
   stepBirds(dt) {
     const r = this.rand;
     if ((this.flitIn -= dt) <= 0) {
       this.flitIn = 15 + r() * 20;
-      const dir = r() < 0.5 ? 1 : -1, y = 70 + r() * 220, speed = 150 + r() * 70, size = 0.8 + r() * 0.5;
+      const dir = r() < 0.5 ? 1 : -1, y = 70 + r() * 180, speed = 110 + r() * 50, size = 0.8 + r() * 0.4;   // (further off: smaller, slower across)
       const n = r() < 0.35 ? 2 : 1;
       for (let i = 0; i < n; i++) this.birds.push({ x: dir > 0 ? -40 - i * 70 : this.W + 40 + i * 70, y: y + i * (r() - 0.5) * 50, base: y, dir, speed, size: size * (1 - i * 0.1),
         phase: r() * 6, flap: 0, wingT: r() });

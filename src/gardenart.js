@@ -3,7 +3,7 @@
 // and petals blowing through the air. A paper-theatre camera: everything is a flat painted cut-out standing in the garden, and the
 // camera follows behind and above you, so the cut-outs slide past and grow as you walk in. This file only draws.
 import { VH, clamp } from './ocean.js';
-import { pathX, HUTS, KAGO, POND, TREE_KINDS, pickButton, GARDEN_PAUSE_ROWS, G_FINGER_OPTS, STROLL_CHOICES, DONE_CHOICES, DONE_WAIT } from './garden.js';
+import { pathX, HUTS, KAGO, POND, TREE_KINDS, pickButton, KEEPER, VASE, OFFER_SPOT, GTUNE, GARDEN_PAUSE_ROWS, G_FINGER_OPTS, STROLL_CHOICES, DONE_CHOICES, DONE_WAIT } from './garden.js';
 import { CHOICE_WAIT } from './choice.js';
 import { createUI, inked, INK, MUTED } from './ui.js';
 import { BUILD } from './version.js';
@@ -271,25 +271,22 @@ export function createGardenArt(canvas) {
     ctx.drawImage(sp.c, p[0] - (sp.w * s) / 2, p[1] - sp.h * s, sp.w * s, sp.h * s);
     ctx.restore();
   }
-  // ---------- mejiro: little olive-green birds with a white ring round the eye ----------
+  // ---------- little birds: simple flat shapes in soft browns and russets, a little hazy, as if up among the far branches ----------
+  // (v3.9, Tom: the green was too strong, too close and too detailed for the flat print style)
+  const BIRD = [['#7a5446', '#5d4036'], ['#86604c', '#664737'], ['#6e4a40', '#553a31']];   // [body, wing]
   function drawBirds(sim) {
     for (const b of sim.birds || []) {
-      const s = 20 * b.size;                                    // (big enough to read as a bird on a phone)
-      ctx.save(); ctx.translate(b.x, b.y); ctx.scale(b.dir * s, s);
-      // far wing first, then body, then near wing
+      const s = 12 * b.size, [body, wingC] = BIRD[Math.floor(b.size * 10) % BIRD.length];
+      ctx.save(); ctx.globalAlpha = 0.82; ctx.translate(b.x, b.y); ctx.scale(b.dir * s, s);
       const wing = (sign) => {
         const tipY = -b.flap * 1.1 * sign;
-        ctx.fillStyle = '#5f6f2c'; ctx.beginPath(); ctx.moveTo(-0.2, -0.15); ctx.quadraticCurveTo(-0.6, tipY - 0.2, -1.15, tipY); ctx.lineTo(0.25, -0.05); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = wingC; ctx.beginPath(); ctx.moveTo(-0.2, -0.12); ctx.quadraticCurveTo(-0.55, tipY - 0.2, -1.05, tipY); ctx.lineTo(0.25, -0.02); ctx.closePath(); ctx.fill();
       };
-      ctx.globalAlpha = 0.75; wing(-0.6); ctx.globalAlpha = 1;
-      ctx.fillStyle = '#7d8c35'; ctx.beginPath(); ctx.ellipse(0, 0, 0.75, 0.38, -0.1, 0, Math.PI * 2); ctx.fill();          // body
-      ctx.beginPath(); ctx.moveTo(-0.6, 0.02); ctx.lineTo(-1.25, -0.08); ctx.lineTo(-1.2, 0.14); ctx.closePath(); ctx.fill();   // tail
-      ctx.fillStyle = '#d8d2a4'; ctx.beginPath(); ctx.ellipse(0.1, 0.17, 0.48, 0.17, -0.1, 0, Math.PI * 2); ctx.fill();       // pale belly
-      ctx.fillStyle = '#c9c247'; ctx.beginPath(); ctx.ellipse(0.55, 0.08, 0.2, 0.16, 0, 0, Math.PI * 2); ctx.fill();          // yellow throat
-      ctx.fillStyle = '#7d8c35'; ctx.beginPath(); ctx.arc(0.62, -0.14, 0.27, 0, Math.PI * 2); ctx.fill();                     // head
-      ctx.fillStyle = '#fbfaf2'; ctx.beginPath(); ctx.arc(0.7, -0.17, 0.11, 0, Math.PI * 2); ctx.fill();                      // the white eye-ring
-      ctx.fillStyle = '#1d1a1c'; ctx.beginPath(); ctx.arc(0.71, -0.17, 0.055, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(0.86, -0.13); ctx.lineTo(1.08, -0.08); ctx.lineTo(0.86, -0.04); ctx.closePath(); ctx.fill(); // beak
+      wing(-0.6);
+      ctx.fillStyle = body; ctx.beginPath(); ctx.ellipse(0, 0, 0.75, 0.36, -0.1, 0, Math.PI * 2); ctx.fill();               // body
+      ctx.beginPath(); ctx.arc(0.6, -0.13, 0.26, 0, Math.PI * 2); ctx.fill();                                                 // head
+      ctx.beginPath(); ctx.moveTo(-0.6, 0.02); ctx.lineTo(-1.2, -0.06); ctx.lineTo(-1.15, 0.13); ctx.closePath(); ctx.fill(); // tail
+      ctx.beginPath(); ctx.moveTo(0.84, -0.12); ctx.lineTo(1.02, -0.08); ctx.lineTo(0.84, -0.04); ctx.closePath(); ctx.fill(); // beak
       wing(1);
       ctx.restore();
     }
@@ -379,6 +376,37 @@ export function createGardenArt(canvas) {
     ctx.closePath(); ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 0.025; ctx.stroke();
     ctx.restore();
   }
+  // the vase on the tea house's counter, holding the blossom she has handed over (it fills up over the strolls)
+  function drawVase(p, count, time, wind) {
+    const s = p[2];
+    ctx.save(); ctx.globalAlpha = fadeFor(p[3], p[0]); ctx.translate(p[0], p[1]); ctx.scale(s, s);
+    const n = Math.min(count, 24);
+    ctx.strokeStyle = '#3a2d2a'; ctx.lineWidth = 0.02; ctx.lineCap = 'round';
+    for (let i = 0; i < n; i++) {
+      // sprigs fanning up out of the vase, each with a few blossoms, swaying just a little
+      const a = -Math.PI / 2 + (((i * 0.618) % 1) - 0.5) * 1.6 + Math.sin(time * 1.3 + i) * 0.02 * wind, len = 0.28 + ((i * 0.37) % 1) * 0.22;
+      const ex = Math.cos(a) * len, ey = -0.28 + Math.sin(a) * len;
+      ctx.beginPath(); ctx.moveTo(0, -0.26); ctx.lineTo(ex, ey); ctx.stroke();
+      for (let k = 1; k <= 3; k++) { ctx.fillStyle = '#fdf8f0'; ctx.beginPath(); ctx.arc(ex * (k / 3), -0.26 + (ey + 0.26) * (k / 3), 0.03, 0, Math.PI * 2); ctx.fill(); }
+    }
+    // the vase: blue and white porcelain
+    ctx.fillStyle = '#e8eef0'; ctx.beginPath(); ctx.moveTo(-0.05, -0.3); ctx.quadraticCurveTo(-0.16, -0.15, -0.09, 0); ctx.lineTo(0.09, 0); ctx.quadraticCurveTo(0.16, -0.15, 0.05, -0.3); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = INK; ctx.lineWidth = 0.015; ctx.stroke();
+    ctx.strokeStyle = '#2f5f8a'; ctx.lineWidth = 0.02; ctx.beginPath(); ctx.moveTo(-0.11, -0.13); ctx.lineTo(0.11, -0.13); ctx.moveTo(-0.08, -0.07); ctx.quadraticCurveTo(0, -0.11, 0.08, -0.07); ctx.stroke();
+    ctx.restore();
+  }
+  // a small woven basket (bottom centre at bx, by, in the figure's units), with blossom showing over the rim
+  function basketShape(bx, by, count) {
+    ctx.strokeStyle = '#7a5a3a'; ctx.lineWidth = 0.025; ctx.beginPath(); ctx.arc(bx, by - 0.16, 0.1, Math.PI, 0); ctx.stroke();   // handle
+    for (let i = 0; i < Math.min(count, 9); i++) {
+      const a = (i * 2.39) % 6.28, rr = 0.03 + (i % 3) * 0.025;
+      ctx.fillStyle = '#fdf8f0'; ctx.beginPath(); ctx.arc(bx + Math.cos(a) * rr * 1.6, by - 0.17 - Math.abs(Math.sin(a)) * rr, 0.035, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = '#c9a55f'; ctx.beginPath(); ctx.moveTo(bx - 0.12, by - 0.16); ctx.lineTo(bx + 0.12, by - 0.16); ctx.lineTo(bx + 0.09, by); ctx.lineTo(bx - 0.09, by); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(110,80,40,0.7)'; ctx.lineWidth = 0.012;
+    ctx.beginPath(); for (let k = -3; k <= 3; k++) { ctx.moveTo(bx + k * 0.03, by - 0.16); ctx.lineTo(bx + k * 0.025, by); } ctx.moveTo(bx - 0.11, by - 0.08); ctx.lineTo(bx + 0.11, by - 0.08); ctx.stroke();
+    ctx.strokeStyle = INK; ctx.lineWidth = 0.018; ctx.beginPath(); ctx.moveTo(bx - 0.12, by - 0.16); ctx.lineTo(bx + 0.12, by - 0.16); ctx.lineTo(bx + 0.09, by); ctx.lineTo(bx - 0.09, by); ctx.closePath(); ctx.stroke();
+  }
   // patterned cloth for outfit i, made once (scaled so one repeat is about a hand's width on the figure)
   const cloths = new Map();
   function cloth(i) {
@@ -408,6 +436,7 @@ export function createGardenArt(canvas) {
     ctx.fillStyle = o.robe; ctx.beginPath(); ctx.moveTo(-0.24, 0); ctx.lineTo(0.24, 0); ctx.lineTo(0.2, -0.75); ctx.lineTo(-0.2, -0.75); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = INK; ctx.lineWidth = 0.025; ctx.stroke();
     if (o.haori) { ctx.fillStyle = o.haori; ctx.fillRect(-0.205, -0.75, 0.41, 0.24); ctx.strokeRect(-0.205, -0.75, 0.41, 0.24); }   // the jacket's hem
+    if (o.apron) { ctx.fillStyle = '#ece6d6'; ctx.fillRect(-0.15, -0.74, 0.3, 0.6); ctx.strokeRect(-0.15, -0.74, 0.3, 0.6); }        // the tea-house keeper's apron
     ctx.save(); ctx.translate(0, -0.75); ctx.rotate((o.idle || 0) * 0.035); ctx.scale(1, 1 - 0.35 * bow); ctx.translate(0, 0.12 * bow);   // (idle: shifting weight)
     ctx.fillStyle = o.haori || o.robe; ctx.beginPath(); ctx.moveTo(-0.2, 0); ctx.lineTo(0.2, 0); ctx.lineTo(0.17, -0.55); ctx.lineTo(-0.17, -0.55); ctx.closePath(); ctx.fill(); ctx.stroke();
     if (o.haori) { ctx.strokeStyle = 'rgba(230,220,200,0.6)'; ctx.lineWidth = 0.02; ctx.beginPath(); ctx.moveTo(-0.08, -0.5); ctx.lineTo(0, -0.2); ctx.lineTo(0.08, -0.5); ctx.stroke(); }   // the jacket's open front
@@ -426,19 +455,7 @@ export function createGardenArt(canvas) {
     ctx.beginPath(); ctx.arc(-look * 0.05, -0.84, 0.07, 0, Math.PI * 2); ctx.fill();               // hair bun
     if (o.ornament) { ctx.fillStyle = '#c4473a'; ctx.beginPath(); ctx.arc(-look * 0.05 + 0.07, -0.87, 0.028, 0, Math.PI * 2); ctx.fill(); }   // a hairpin
     ctx.restore();
-    if (o.basket != null) {
-      // her basket, hanging at her side, filling up with the blossom she gathers
-      const bx = 0.31, by = -0.42;
-      ctx.strokeStyle = '#7a5a3a'; ctx.lineWidth = 0.025; ctx.beginPath(); ctx.arc(bx, by - 0.16, 0.1, Math.PI, 0); ctx.stroke();   // handle
-      for (let i = 0; i < Math.min(o.basket, 9); i++) {
-        const a = (i * 2.39) % 6.28, rr = 0.03 + (i % 3) * 0.025;
-        ctx.fillStyle = '#fdf8f0'; ctx.beginPath(); ctx.arc(bx + Math.cos(a) * rr * 1.6, by - 0.17 - Math.abs(Math.sin(a)) * rr, 0.035, 0, Math.PI * 2); ctx.fill();
-      }
-      ctx.fillStyle = '#c9a55f'; ctx.beginPath(); ctx.moveTo(bx - 0.12, by - 0.16); ctx.lineTo(bx + 0.12, by - 0.16); ctx.lineTo(bx + 0.09, by); ctx.lineTo(bx - 0.09, by); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = 'rgba(110,80,40,0.7)'; ctx.lineWidth = 0.012;
-      ctx.beginPath(); for (let k = -3; k <= 3; k++) { ctx.moveTo(bx + k * 0.03, by - 0.16); ctx.lineTo(bx + k * 0.025, by); } ctx.moveTo(bx - 0.11, by - 0.08); ctx.lineTo(bx + 0.11, by - 0.08); ctx.stroke();
-      ctx.strokeStyle = INK; ctx.lineWidth = 0.018; ctx.beginPath(); ctx.moveTo(bx - 0.12, by - 0.16); ctx.lineTo(bx + 0.12, by - 0.16); ctx.lineTo(bx + 0.09, by); ctx.lineTo(bx - 0.09, by); ctx.closePath(); ctx.stroke();
-    }
+    if (o.basket != null) basketShape(0.31, -0.42, o.basket);         // her basket, hanging at her side
     ctx.restore();
   }
 
@@ -477,8 +494,8 @@ export function createGardenArt(canvas) {
   function drawArrived(sim) {
     const a = clamp((sim.arrivedT - 0.8) / 0.7, 0, 1);
     ctx.globalAlpha = a * 0.5; ctx.fillStyle = '#f4e7d6'; ctx.fillRect(0, 0, W, VH); ctx.globalAlpha = a;
-    ui.text('BEYOND THE SECOND HUT', W / 2, 205, 40, INK, 'center', 'bold');
-    ui.text(sim.basket > 0 ? 'YOU GATHERED ' + sim.basket + (sim.basket === 1 ? ' SPRIG' : ' SPRIGS') + ' OF BLOSSOM'
+    ui.text('THE TEA HOUSE', W / 2, 205, 40, INK, 'center', 'bold');
+    ui.text(sim.basket > 0 ? 'YOU GAVE ' + sim.basket + (sim.basket === 1 ? ' SPRIG' : ' SPRIGS') + ' OF BLOSSOM FOR THE VASE'
       : sim.stats.strolls === 1 ? 'A STROLL THROUGH THE PLUM GARDEN' : 'STROLL ' + sim.stats.strolls + ' COMPLETE', W / 2, 256, 20, MUTED, 'center');
     ctx.globalAlpha = 1;
     ui.choices(STROLL_CHOICES, { W, sel: sim.choice, ready: sim.arrivedT >= CHOICE_WAIT + 0.8, alpha: a });
@@ -501,8 +518,10 @@ export function createGardenArt(canvas) {
     artInk += (target - artInk) * Math.min(1, dt * (sim.state === 'play' ? 6 : 1.4));
     const ink = START_INK + artInk * (1 - START_INK / 100);
 
-    // the camera drifts along behind you (a little behind your sideways steps, so it feels like floating, not bolted on)
-    const wantX = showYou ? p.x * CAM.follow + pathX(p.z) * (1 - CAM.follow) : pathX(0);
+    // the camera drifts along behind you (a little behind your sideways steps, so it feels like floating, not bolted on);
+    // at the tea house it turns a little toward the keeper, so you see them both
+    const atTea = sim.offer && (sim.state === 'offering' || sim.state === 'arrived' || sim.strollDone);
+    const wantX = atTea ? (p.x + KEEPER.x) / 2 : showYou ? p.x * CAM.follow + pathX(p.z) * (1 - CAM.follow) : pathX(0);
     const wantZ = (showYou ? p.z : 0) - CAM.back;
     if (sim.paused) { /* hold still */ } else if (Math.abs(wantZ - cam.z) > 30) { cam.x = wantX; cam.z = wantZ; }
     else { cam.x += (wantX - cam.x) * Math.min(1, dt * CAM.ease); cam.z += (wantZ - cam.z) * Math.min(1, dt * CAM.ease * 2); }
@@ -523,6 +542,15 @@ export function createGardenArt(canvas) {
     { const q = project(KAGO.x, 0, KAGO.z); if (q && q[3] < 230) list.push([q[3], 'kago', KAGO, q]); }
     for (const o of sim.people) { const q = project(o.x, 0, o.z); if (q && q[3] < 200) list.push([q[3], 'person', o, q]); }
     if (showYou) { const q = project(p.x, 0, p.z); if (q) list.push([q[3], 'you', p, q]); }
+    { const q = project(KEEPER.x, 0, KEEPER.z); if (q && q[3] < 200) list.push([q[3], 'keeper', sim.keeper, q]); }
+    { const q = project(VASE.x, VASE.y, VASE.z); if (q && q[3] < 120) list.push([q[3], 'vase', null, q]); }
+    // the basket passing from her hands to the keeper's
+    const give = sim.offer && sim.offer.phase === 'give' ? clamp(sim.offer.t / GTUNE.giveSecs, 0, 1) : -1;
+    if (give >= 0) {
+      const e = give * give * (3 - 2 * give), from = [p.x + 0.3, 0.45, p.z], to = [KEEPER.x - 0.25, 0.75, KEEPER.z];
+      const q = project(from[0] + (to[0] - from[0]) * e, from[1] + (to[1] - from[1]) * e + Math.sin(give * Math.PI) * 0.15, from[2] + (to[2] - from[2]) * e);
+      if (q) list.push([q[3] - 0.01, 'basket', null, q]);
+    }
     list.sort((a, b) => b[0] - a[0]);
     for (const [, kind, o, q] of list) {
       if (kind !== 'you' && fadeFor(q[3], q[0]) < 0.02) continue;
@@ -532,8 +560,12 @@ export function createGardenArt(canvas) {
       else if (kind === 'kago') drawKago(q, sim.wind, time);
       else if (kind === 'person') drawPerson(q, { robe: cloth(o.dress), obi: OUTFITS[o.dress % OUTFITS.length][3], haori: OUTFITS[o.dress % OUTFITS.length][4], front: o.face,
         step: o.step, bow: o.bowT > 0 ? Math.sin((o.bowT / 1.4) * Math.PI) : 0, look: o.head, idle: Math.sin(time * 0.7 + o.phase) });
+      else if (kind === 'keeper') drawPerson(q, { robe: '#2f3d52', obi: '#ece6d6', front: true, step: 0, apron: true,
+        bow: o.bowT > 0 ? Math.sin((o.bowT / GTUNE.bowSecs) * Math.PI) : 0, look: 0, idle: Math.sin(time * 0.6) * 0.5 });
+      else if (kind === 'vase') drawVase(q, sim.vase, time, sim.wind);
+      else if (kind === 'basket') { ctx.save(); ctx.translate(q[0], q[1]); ctx.scale(q[2], q[2]); basketShape(0, 0.08, sim.basket); ctx.restore(); }
       else drawPerson(q, { robe: YOU, obi: '#e8d9b0', front: false, step: o.step, bow: Math.max(o.bow, Math.min(1, o.pick * 1.25)), alpha: o.fade, look: o.look,
-        basket: sim.basket, ornament: true });
+        basket: sim.handedOver ? null : sim.basket, ornament: true });
     }
 
     drawBirds(sim);

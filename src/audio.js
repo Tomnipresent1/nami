@@ -164,7 +164,9 @@ export const gardenSfx = {
     whistle(2350, 2050, 1.05, 0.12, 0.03 * far); whistle(1850, 1800, 1.22, 0.1, 0.03 * far); whistle(2750, 2550, 1.36, 0.22, 0.032 * far);
   },
   arrived() { [0, 2, 4, 6, 8].forEach((i, k) => pluck(SCALE[i], 0.1, k * 0.16, 2.4)); },
-  // mejiro flitting past: a few tiny, high, quiet "chii" calls
+  // handing the basket to the tea-house keeper: a soft bell and a gentle rising phrase
+  give() { bell(660, 0.06); [2, 4, 5, 7].forEach((i, k) => pluck(SCALE[i], 0.08, 0.35 + k * 0.22, 2.4)); },
+  // little birds flitting past: a few tiny, high, quiet "chii" calls
   flit() { if (!ac) return; const n = 2 + Math.floor(Math.random() * 3); for (let i = 0; i < n; i++) whistle(4200 + Math.random() * 600, 3600 + Math.random() * 400, 0.3 + i * 0.13, 0.07, 0.012); },
   // gathering a sprig: a soft rustle of grass, then one gentle note that climbs a little as the basket fills
   pick(n = 1) { noise(0.35, 0.05, 2600, 900); pluck(SCALE[Math.min(9, 3 + ((n - 1) % 7))], 0.08, 0.2, 2.0); },
