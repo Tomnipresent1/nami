@@ -66,7 +66,7 @@ export const TABLE = { x: TEA.x - TEA.hw - 0.3, z: TEA.z - TEA.hd - 1.3, r: 0.45
 export const KEEPER = { x: TEA.x - TEA.hw + 0.9, z: TEA.z - TEA.hd - 0.25 };             // at the front of the tea house
 export const OFFER_SPOT = { x: TABLE.x - 0.55, z: TABLE.z - 0.8 };                       // where she stands, just in front of the table
 export const VASE = { x: TABLE.x, y: TABLE.top, z: TABLE.z };                            // on the table
-export const VASE_START = 3;                                                              // the vase already holds a few sprigs
+export const VASE_START = 0;              // the vase waits empty each stroll, so what ends up in it is what she gathered (Tom, v3.12)
 export const OFFER_FROM = OFFER_SPOT.z - 5;            // walking this far in, she makes her way over to the tea house by herself
 // a clear space in front of the tea house: nobody lingers here, and passers-by give it a wide berth while you are there (Tom)
 export const TEA_CLEAR = { x: (OFFER_SPOT.x + KEEPER.x) / 2, z: (OFFER_SPOT.z + KEEPER.z) / 2, r: 4.5 };
@@ -142,7 +142,6 @@ export class Garden {
     this.events = [];
     this.stats = { strolls: 0, bows: 0, walked: 0, picked: 0 };
     this.endless = false; this.completeT = 0; this.choice = 0;
-    this.vase = VASE_START;          // sprigs in the vase on the tea house's table (it fills up over the strolls)
     this.message = null;
     this.wind = 0.5;
     this.chimeIn = 4; this.birdIn = 12;
@@ -156,6 +155,7 @@ export class Garden {
     this.drag = null;
     this.arrivedT = 0;
     this.basket = 0;                 // sprigs gathered on this stroll
+    this.vase = VASE_START;          // sprigs in the vase on the tea house's table (empty until she fills it)
     this.reachable = -1;             // the sprig within reach right now (the pick button shows), or -1
     this.offer = null;               // the hand-over at the tea house, once it begins: { phase: walk | bow | give | thanks, t }
     this.handedOver = false;         // the basket has gone to the keeper
@@ -180,7 +180,7 @@ export class Garden {
     const person = (kind, x, z, extra = {}) => ({ id: id++, kind, x, z, homeX: x, homeZ: z, vx: 0, vz: 0, tx: x, tz: z, wait: 1 + r() * 6,
       bowed: false, bowT: 0, dress: Math.floor(r() * 30), phase: r() * 6, step: r() * 4, head: 0, headTo: 0, headT: r() * 4,
       face: r() < 0.6, ...extra });
-    for (let z = -10; z < PATH_END + 30; z += 6 + r() * 7) {
+    for (let z = 3; z < PATH_END + 30; z += 6 + r() * 7) {           // (from just ahead of you: anyone behind you would be right in front of the camera)
       const side = r() < 0.5 ? -1 : 1, x = pathX(z) + side * (2 + r() * 6);
       if (inTeaClear(x, z, 1.5) || nearSprig(x, z, 2.2)) continue;          // nobody lingers in front of the tea house, or on fallen blossom
       this.people.push(person('stand', x, z));
@@ -404,9 +404,11 @@ export class Garden {
         // they step aside for you, as you do for them
         if (playing && Math.abs(q.z - p.z) < 6 && Math.sign(q.z - p.z) === -Math.sign(q.vz) && Math.abs(q.x - p.x) < 1.3) q.x += Math.sign(q.x - p.x || 1) * 0.7 * dt;
         // gone behind you: someone else sets off further up the path (coming toward you, or ambling on ahead)
-        if (q.z < p.z - 9 || q.z > p.z + 110) {
+        if (q.z < p.z - 3 || q.z > p.z + 110) {                          // (soon after passing you: behind you, they'd be up against the lens)
           const nz = q.vz < 0 ? p.z + 55 + r() * 40 : p.z + 25 + r() * 30;
-          if (nz < PATH_END + 25) { q.z = nz; q.x = pathX(nz) + (r() - 0.5) * 5; q.bowed = false; q.dress = Math.floor(r() * 30); }
+          // (near the end of the stroll there's no room up the path: they set off from beyond the far trees instead)
+          const z2 = nz < PATH_END + 25 ? nz : PATH_END + 45 + r() * 25;
+          q.z = z2; q.x = pathX(z2) + (r() - 0.5) * 5; q.bowed = false; q.dress = Math.floor(r() * 30);
         }
       } else {
         // lingering: wait a while, then wander a few steps to a new spot near where they were, and admire from there

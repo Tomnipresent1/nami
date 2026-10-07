@@ -205,6 +205,9 @@ export function createGardenArt(canvas) {
     const inFront = Math.abs(sx - youX) < W * 0.13;
     return (inFront ? clamp((dz - CAM.back * 0.6) / (CAM.back * 0.12), 0, 1) : clamp((dz - 1.5) / 1.5, 0, 1)) * haze;
   };
+  // people are different: anyone who has passed behind you fades away quickly wherever they are on screen, so nobody ever looms
+  // up close in front of the lens (v3.12, Tom: now and then someone appeared huge in front of the camera for a second)
+  const fadePerson = (dz) => clamp((dz - CAM.back * 0.82) / (CAM.back * 0.14), 0, 1) * (1 - 0.5 * clamp((dz - 90) / 180, 0, 1));
 
   // ---------- backdrop ----------
   function drawSky(ink) {
@@ -414,14 +417,12 @@ export function createGardenArt(canvas) {
   function drawVase(p, count, time, wind) {
     const s = p[2];
     ctx.save(); ctx.globalAlpha *= fadeFor(p[3], p[0]); ctx.translate(p[0], p[1]); ctx.scale(s, s);
-    const n = Math.min(count, 24);
-    ctx.strokeStyle = '#3a2d2a'; ctx.lineWidth = 0.02; ctx.lineCap = 'round';
+    // the sprigs she gathered, standing up out of the vase and fanning out: the same twigs of round white blossom with pink hearts
+    // as on the grass (v3.12, Tom: they had turned into thin sticks with dots), swaying just a little
+    const n = Math.min(count, 14);
     for (let i = 0; i < n; i++) {
-      // sprigs fanning up out of the vase, each with a few blossoms, swaying just a little
-      const a = -Math.PI / 2 + (((i * 0.618) % 1) - 0.5) * 1.6 + Math.sin(time * 1.3 + i) * 0.02 * wind, len = 0.28 + ((i * 0.37) % 1) * 0.22;
-      const ex = Math.cos(a) * len, ey = -0.28 + Math.sin(a) * len;
-      ctx.beginPath(); ctx.moveTo(0, -0.26); ctx.lineTo(ex, ey); ctx.stroke();
-      for (let k = 1; k <= 3; k++) { ctx.fillStyle = '#fdf8f0'; ctx.beginPath(); ctx.arc(ex * (k / 3), -0.26 + (ey + 0.26) * (k / 3), 0.03, 0, Math.PI * 2); ctx.fill(); }
+      const a = -Math.PI / 2 + (((i * 0.618) % 1) - 0.5) * 1.5 + Math.sin(time * 1.3 + i) * 0.03 * wind, half = 0.24 * (0.85 + ((i * 0.37) % 1) * 0.3);
+      sprigShape(Math.cos(a) * half, -0.27 + Math.sin(a) * half, half / 0.28, a, 1);   // one end of each twig in the vase's mouth
     }
     // the vase: blue and white porcelain
     ctx.fillStyle = '#e8eef0'; ctx.beginPath(); ctx.moveTo(-0.05, -0.3); ctx.quadraticCurveTo(-0.16, -0.15, -0.09, 0); ctx.lineTo(0.09, 0); ctx.quadraticCurveTo(0.16, -0.15, 0.05, -0.3); ctx.closePath(); ctx.fill();
@@ -460,7 +461,7 @@ export function createGardenArt(canvas) {
   function drawPerson(p, o) {
     // a figure in kimono, about 1.6 tall; front: facing you, else seen from behind
     const s = p[2];
-    ctx.save(); ctx.globalAlpha = (o.alpha ?? 1) * fadeFor(p[3], p[0]);
+    ctx.save(); ctx.globalAlpha = (o.alpha ?? 1) * (o.passerby ? fadePerson(p[3]) : fadeFor(p[3], p[0]));
     ctx.translate(p[0], p[1]); ctx.scale(s, s);
     ctx.fillStyle = 'rgba(30,60,45,0.22)'; ctx.beginPath(); ctx.ellipse(0, 0, 0.35, 0.08, 0, 0, Math.PI * 2); ctx.fill();
     const bob = Math.abs(Math.sin(o.step * Math.PI)) * 0.03, sway = Math.sin(o.step * Math.PI) * 0.03;
@@ -588,13 +589,13 @@ export function createGardenArt(canvas) {
     if (tea.handful) onTable('handful', tea.handful.pos, tea.handful);
     list.sort((a, b) => b[0] - a[0]);
     for (const [, kind, o, q] of list) {
-      if (kind !== 'you' && fadeFor(q[3], q[0]) < 0.02) continue;
+      if (kind !== 'you' && (kind === 'person' ? fadePerson(q[3]) : fadeFor(q[3], q[0])) < 0.02) continue;
       if (kind === 'tree') drawTree(o, q, sim.wind, time);
       else if (kind === 'hut') drawHut(o, q);
       else if (kind === 'fence') drawFence(o, q);
       else if (kind === 'kago') drawKago(q, sim.wind, time);
       else if (kind === 'person') drawPerson(q, { robe: cloth(o.dress), obi: OUTFITS[o.dress % OUTFITS.length][3], haori: OUTFITS[o.dress % OUTFITS.length][4], front: o.face,
-        step: o.step, bow: o.bowT > 0 ? Math.sin((o.bowT / 1.4) * Math.PI) : 0, look: o.head, idle: Math.sin(time * 0.7 + o.phase) });
+        step: o.step, bow: o.bowT > 0 ? Math.sin((o.bowT / 1.4) * Math.PI) : 0, look: o.head, idle: Math.sin(time * 0.7 + o.phase), passerby: true });
       else if (kind === 'table') drawTable();
       else if (kind === 'keeper') drawPerson(q, { robe: '#3a4a5c', haori: '#24262d', obi: '#ece6d6', front: true, step: 0,     // the keeper: a man in a dark haori
         bow: o.bowT > 0 ? Math.sin((o.bowT / GTUNE.bowSecs) * Math.PI) : 0, look: 0, idle: Math.sin(time * 0.6) * 0.5 });
