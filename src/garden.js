@@ -31,7 +31,7 @@ export const GTUNE = {
   inkPick: 1.5,
   inkGift: 3,              // for handing your basket to the tea-house keeper
   // the tea-house ending, unhurried: seconds for each part (v3.11, Tom: the pause before the bow was too long)
-  tea: { settle: 0.15, fill: 1.7, linger: 1.6 },
+  tea: { settle: 0.05, fill: 1.7, linger: 1.6 },
   aimLead: 0.25,           // how far ahead of you the finger can get (small = reversing answers at once)
 };
 // finger speed (as on the bridge): picture units of finger travel per unit of sideways step, and top sideways speed
@@ -73,7 +73,8 @@ export const TEA_CLEAR = { x: (OFFER_SPOT.x + KEEPER.x) / 2, z: (OFFER_SPOT.z + 
 const inTeaClear = (x, z, pad = 0) => Math.hypot(x - TEA_CLEAR.x, z - TEA_CLEAR.z) < TEA_CLEAR.r + pad;
 
 // the kago stands just beside where you begin, so at the start it is big and cropped by the right edge, framing the view as in the print
-export const KAGO = { x: pathX(-5) + 3.4, z: -5, hw: 1.5, hd: 0.8 };
+// (v3.13, Tom: its top was too close and got in the way of the view; moved further right so it frames the edge instead)
+export const KAGO = { x: pathX(-5) + 5.3, z: -5, hw: 1.5, hd: 0.8 };
 export const POND = { x0: -22, x1: -9.5, z0: 30, z1: 62 };
 
 export const TREE_KINDS = 8;                 // different painted trees (each with its own trunk tone and blossom)
@@ -446,9 +447,11 @@ export class Garden {
     const S = T.tea, next = (phase) => { o.phase = phase; o.t = 0; };
     if (o.phase === 'walk') {
       const dx = OFFER_SPOT.x - p.x, dz = OFFER_SPOT.z - p.z, d = Math.hypot(dx, dz);
-      if (d < 0.03 || o.t > 9) { p.x = OFFER_SPOT.x; p.z = OFFER_SPOT.z; next('settle'); }   // (never wander forever: after 9 s she is simply there)
+      if (d < 0.06 || o.t > 9) { p.x = OFFER_SPOT.x; p.z = OFFER_SPOT.z; next('settle'); }   // (never wander forever: after 9 s she is simply there)
       else {
-        const sp = Math.min(1.1, d * 1.1);                              // slowing gently as she arrives
+        // an easy pace, easing off only over the last half step, so she arrives properly (v3.13: she used to creep the last bit
+        // for ~3 s, which felt like a long pause before the bow)
+        const sp = Math.min(1.1, Math.max(0.5, d * 2));
         p.x += (dx / d) * sp * dt; p.z += (dz / d) * sp * dt; p.step += sp * dt * 1.3;
         this.collide(p, dt, true);
       }

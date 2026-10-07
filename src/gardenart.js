@@ -199,6 +199,7 @@ export function createGardenArt(canvas) {
   // pale ghost); out at the edges they stay solid and sweep past, cropped by the frame like the print's big foreground trunk
   // (v26: only things that would actually stand in front of YOU fade, and quickly; the rest stay solid, no half-see-through ghosts)
   let youX = W / 2;
+  let teaTurn = 0;                                 // 0..1: how far the camera has turned toward the tea house
   const fadeFor = (dz, sx = W / 2) => {
     const haze = 1 - 0.5 * clamp((dz - 90) / 180, 0, 1);
     if (dz >= CAM.back - 1) return haze;                                        // beyond you: never in the way
@@ -556,7 +557,11 @@ export function createGardenArt(canvas) {
     // the camera drifts along behind you (a little behind your sideways steps, so it feels like floating, not bolted on);
     // at the tea house it turns a little toward the keeper, so you see them both
     const atTea = sim.offer && (sim.state === 'offering' || sim.state === 'arrived' || sim.strollDone);
-    const wantX = atTea ? (p.x + KEEPER.x) / 2 : showYou ? p.x * CAM.follow + pathX(p.z) * (1 - CAM.follow) : pathX(0);
+    // turning toward the tea house happens gradually: a blend that eases in and out over about 2.5 s (v3.13, Tom: it swung too fast)
+    if (!sim.paused) teaTurn = clamp(teaTurn + (atTea ? 1 : -1) * dt / 2.5, 0, 1);
+    const turn = smoother(teaTurn);
+    const followX = showYou ? p.x * CAM.follow + pathX(p.z) * (1 - CAM.follow) : pathX(0);
+    const wantX = followX + ((p.x + KEEPER.x) / 2 - followX) * turn;
     const wantZ = (showYou ? p.z : 0) - CAM.back;
     if (sim.paused) { /* hold still */ } else if (Math.abs(wantZ - cam.z) > 30) { cam.x = wantX; cam.z = wantZ; }
     else { cam.x += (wantX - cam.x) * Math.min(1, dt * CAM.ease); cam.z += (wantZ - cam.z) * Math.min(1, dt * CAM.ease * 2); }
