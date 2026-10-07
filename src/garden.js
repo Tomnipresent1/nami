@@ -30,8 +30,8 @@ export const GTUNE = {
   pickSecs: 1.6,           // she stops, bends, picks it up and puts it in her basket
   inkPick: 1.5,
   inkGift: 3,              // for handing your basket to the tea-house keeper
-  // the tea-house ending, unhurried (Tom: it felt rushed): seconds for each part
-  tea: { settle: 0.7, place: 1.9, vase: 1.7, fill: 1.6, thanks: 1.6, linger: 1.2 },
+  // the tea-house ending, unhurried: seconds for each part (v3.11, Tom: the pause before the bow was too long)
+  tea: { settle: 0.15, fill: 1.7, linger: 1.6 },
   aimLead: 0.25,           // how far ahead of you the finger can get (small = reversing answers at once)
 };
 // finger speed (as on the bridge): picture units of finger travel per unit of sideways step, and top sideways speed
@@ -58,19 +58,18 @@ export const HUTS = [
   { z: 110, side: 1, double: false },
   { z: 165, side: -1, double: false },        // the third hut, glimpsed through the trees beyond the end of the stroll
 ].map((h) => ({ ...h, x: pathX(h.z) + h.side * (h.double ? 9.2 : 7.6), hw: h.double ? 5 : 3.2, hd: 2.4 }));
-// ---- the tea house (Tom, v3.9/v3.10): the second hut is a chaya with a wooden counter at its front and the keeper behind it.
-// The stroll ends there, slowly: she arrives and pauses, they bow, she sets her basket on the counter, the keeper brings out a
-// vase and moves the blossom into it in two gentle handfuls, they bow their thanks, a moment's pause, then the fade.
+// ---- the tea house (Tom, v3.9-v3.11): the second hut is a chaya. In front of it stands a small round table with a vase of
+// blossom on it, and the keeper (a man, in a dark haori) at the tea house's front. The stroll closes there: she arrives, bows to
+// him (he bows back), then puts the blossom she gathered into the vase herself, in two gentle movements; a moment, then the fade.
 export const TEA = HUTS[1];
-export const COUNTER = { x0: TEA.x - TEA.hw + 0.2, x1: TEA.x - TEA.hw + 2.9, z: TEA.z - TEA.hd - 0.4, depth: 0.45, top: 0.72 };
-export const KEEPER = { x: COUNTER.x0 + 1.5, z: COUNTER.z + COUNTER.depth + 0.2 };      // behind the counter
-export const OFFER_SPOT = { x: COUNTER.x0 + 0.35, z: COUNTER.z - 0.7 };                  // where she stands, in front of the counter
-export const BASKET_SPOT = { x: COUNTER.x0 + 0.6, y: COUNTER.top, z: COUNTER.z + 0.2 };   // where she sets her basket down
-export const VASE = { x: COUNTER.x0 + 1.9, y: COUNTER.top, z: COUNTER.z + 0.2 };        // where the keeper stands the vase
+export const TABLE = { x: TEA.x - TEA.hw - 0.3, z: TEA.z - TEA.hd - 1.3, r: 0.45, top: 0.58 };
+export const KEEPER = { x: TEA.x - TEA.hw + 0.9, z: TEA.z - TEA.hd - 0.25 };             // at the front of the tea house
+export const OFFER_SPOT = { x: TABLE.x - 0.55, z: TABLE.z - 0.8 };                       // where she stands, just in front of the table
+export const VASE = { x: TABLE.x, y: TABLE.top, z: TABLE.z };                            // on the table
+export const VASE_START = 3;                                                              // the vase already holds a few sprigs
 export const OFFER_FROM = OFFER_SPOT.z - 5;            // walking this far in, she makes her way over to the tea house by herself
 // a clear space in front of the tea house: nobody lingers here, and passers-by give it a wide berth while you are there (Tom)
-export const TEA_CLEAR = { x: (OFFER_SPOT.x + KEEPER.x) / 2, z: COUNTER.z, r: 4.5 };
-const COUNTER_BOX = { x: (COUNTER.x0 + COUNTER.x1) / 2, z: COUNTER.z + COUNTER.depth / 2, hw: (COUNTER.x1 - COUNTER.x0) / 2, hd: COUNTER.depth / 2 };
+export const TEA_CLEAR = { x: (OFFER_SPOT.x + KEEPER.x) / 2, z: (OFFER_SPOT.z + KEEPER.z) / 2, r: 4.5 };
 const inTeaClear = (x, z, pad = 0) => Math.hypot(x - TEA_CLEAR.x, z - TEA_CLEAR.z) < TEA_CLEAR.r + pad;
 
 // the kago stands just beside where you begin, so at the start it is big and cropped by the right edge, framing the view as in the print
@@ -143,7 +142,7 @@ export class Garden {
     this.events = [];
     this.stats = { strolls: 0, bows: 0, walked: 0, picked: 0 };
     this.endless = false; this.completeT = 0; this.choice = 0;
-    this.vase = 0;                   // sprigs in the tea house's vase (it fills up over the strolls)
+    this.vase = VASE_START;          // sprigs in the vase on the tea house's table (it fills up over the strolls)
     this.message = null;
     this.wind = 0.5;
     this.chimeIn = 4; this.birdIn = 12;
@@ -177,15 +176,16 @@ export class Garden {
     // the path, coming toward you or ambling on ahead of you (Tom: more gentle movement)
     this.people = [];
     let id = 0;
+    const nearSprig = (x, z, d) => this.nearSprig(x, z, d);
     const person = (kind, x, z, extra = {}) => ({ id: id++, kind, x, z, homeX: x, homeZ: z, vx: 0, vz: 0, tx: x, tz: z, wait: 1 + r() * 6,
       bowed: false, bowT: 0, dress: Math.floor(r() * 30), phase: r() * 6, step: r() * 4, head: 0, headTo: 0, headT: r() * 4,
       face: r() < 0.6, ...extra });
     for (let z = -10; z < PATH_END + 30; z += 6 + r() * 7) {
       const side = r() < 0.5 ? -1 : 1, x = pathX(z) + side * (2 + r() * 6);
-      if (inTeaClear(x, z, 1.5)) continue;                                  // nobody lingers in front of the tea house
+      if (inTeaClear(x, z, 1.5) || nearSprig(x, z, 2.2)) continue;          // nobody lingers in front of the tea house, or on fallen blossom
       this.people.push(person('stand', x, z));
       // often in pairs, admiring the blossom together
-      if (r() < 0.45 && !inTeaClear(x + side * 0.8, z + 0.4, 1.5)) this.people.push(person('stand', x + side * 0.8, z + 0.4));
+      if (r() < 0.45 && !inTeaClear(x + side * 0.8, z + 0.4, 1.5) && !nearSprig(x + side * 0.8, z + 0.4, 2.2)) this.people.push(person('stand', x + side * 0.8, z + 0.4));
     }
     for (let k = 0; k < 7; k++) {
       const z = 20 + k * 28 + r() * 12, away = k % 3 === 1;
@@ -273,6 +273,9 @@ export class Garden {
     if (inp.pick || keys.includes('enter') || taps.some((t) => onPickButton(t.x, t.y, this.W))) this.startPick();
     this.stepWorld(dt, inp, true);
   }
+
+  /** Is there fallen blossom (not yet gathered) within d of x,z? People keep off it, so gathering always flows (Tom). */
+  nearSprig(x, z, d) { return (this.sprigs || []).some((s) => !s.picked && Math.hypot(s.x - x, s.z - z) < d); }
 
   /** Stop, bend down, and gather the sprig within reach into the basket (does nothing if none is within reach). */
   startPick() {
@@ -416,7 +419,7 @@ export class Garden {
           q.tx = q.homeX + (r() - 0.5) * 5; q.tz = q.homeZ + (r() - 0.5) * 4; q.wait = 4 + r() * 8;
           const off = q.tx - pathX(q.tz);                                    // they keep to the sides, off the middle of the path
           if (Math.abs(off) < 2.2) q.tx = pathX(q.tz) + (Math.sign(off) || 1) * 2.2;
-          if (inTeaClear(q.tx, q.tz, 1)) { q.tx = q.x; q.tz = q.z; }                   // and never wander over to the tea house
+          if (inTeaClear(q.tx, q.tz, 1) || this.nearSprig(q.tx, q.tz, 1.8)) { q.tx = q.x; q.tz = q.z; }   // never wander to the tea house or onto blossom
           if (r() < 0.3) { q.tx = q.x; q.tz = q.z; q.face = !q.face; }     // or just turn round to look the other way
         }
       }
@@ -435,7 +438,8 @@ export class Garden {
     const T = GTUNE, p = this.player, o = this.offer;
     o.t += dt;
     if (p.bowT > 0) { p.bowT -= dt; p.bow = Math.sin(clamp(1 - p.bowT / T.bowSecs, 0, 1) * Math.PI); } else p.bow = 0;
-    p.pick = 0; p.v = 0;
+    // (while she puts blossom in the vase, she leans gently toward the table)
+    p.pick = o.phase === 'fill' ? 0.4 * Math.sin(Math.PI * clamp(o.t / T.tea.fill, 0, 1)) : 0; p.v = 0;
     p.look += (0 - p.look) * Math.min(1, dt * 3);
     const S = T.tea, next = (phase) => { o.phase = phase; o.t = 0; };
     if (o.phase === 'walk') {
@@ -446,30 +450,21 @@ export class Garden {
         p.x += (dx / d) * sp * dt; p.z += (dz / d) * sp * dt; p.step += sp * dt * 1.3;
         this.collide(p, dt, true);
       }
-    } else if (o.phase === 'settle' && o.t >= S.settle) {             // a moment's pause, then they bow
+    } else if (o.phase === 'settle' && o.t >= S.settle) {             // the briefest moment, then she bows to the keeper and he bows back
       next('bow'); p.bowT = T.bowSecs; this.keeper.bowT = T.bowSecs;
       if (scoring) this.say('bow');
-    } else if (o.phase === 'bow' && o.t >= T.bowSecs + 0.3) {
-      if (this.basket > 0) { next('place'); this.handedOver = true; }  // she sets her basket down on the counter
+    } else if (o.phase === 'bow' && o.t >= T.bowSecs + 0.2) {
+      if (this.basket > 0) { next('fill'); o.fill = 1; o.moved = 0; this.handedOver = true; if (scoring) this.say('give', { n: this.basket }); }
       else next('linger');                                               // nothing to give: the bow was enough
-    } else if (o.phase === 'place' && o.t >= S.place) {
-      next('vase'); o.moved = 0;                                         // the keeper brings out a vase from behind the counter
-    } else if (o.phase === 'vase' && o.t >= S.vase) {
-      next('fill'); o.fill = 1;
-      if (scoring) this.say('give', { n: this.basket });
     } else if (o.phase === 'fill') {
-      // two gentle handfuls from basket to vase: the vase fills as each one lands
+      // she puts the blossom into the vase herself, in two gentle movements: the vase fills as each lands
       const half = Math.ceil(this.basket / 2), handful = o.fill === 1 ? half : this.basket - half;
       if (o.t >= S.fill * 0.7 && !o.landed) { o.landed = true; this.vase += handful; o.moved += handful; }
       if (o.t >= S.fill) {
         o.landed = false;
         if (o.fill === 1 && this.basket > 1) { o.fill = 2; o.t = 0; }
-        else { if (scoring) this.addInk(T.inkGift); next('thanks'); }
+        else { if (scoring) this.addInk(T.inkGift); next('linger'); }
       }
-    } else if (o.phase === 'thanks' && o.t < dt * 1.5) {
-      this.keeper.bowT = T.bowSecs; p.bowT = T.bowSecs;                  // they bow their thanks to each other
-    } else if (o.phase === 'thanks' && o.t >= S.thanks) {
-      next('linger');
     } else if (o.phase === 'linger' && o.t >= S.linger) {
       this.stats.strolls++;
       this.arrivedT = 0; this.choice = 0;
@@ -524,7 +519,7 @@ export class Garden {
     };
     for (const t of this.garden.trees) if (Math.abs(t.z - p.z) < 2 && Math.abs(t.x - p.x) < 2) pushCircle(t.x, t.z, t.r);
     for (const h of HUTS) if (Math.abs(h.z - p.z) < h.hd + 1) pushBox(h);
-    if (Math.abs(COUNTER.z - p.z) < 2) pushBox(COUNTER_BOX);
+    if (Math.abs(TABLE.z - p.z) < 2) pushCircle(TABLE.x, TABLE.z, TABLE.r);
     if (Math.abs(KAGO.z - p.z) < 2) pushBox(KAGO);
     for (const q of this.people) if (Math.abs(q.z - p.z) < 1.5) pushCircle(q.x, q.z, 0.4);
     // walking straight into something: drift gently round it toward the side with more room, so you are never stuck
