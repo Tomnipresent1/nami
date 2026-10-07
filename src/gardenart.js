@@ -390,9 +390,13 @@ export function createGardenArt(canvas) {
     else { ctx.fillStyle = o.obi; ctx.fillRect(-0.2, -0.22, 0.4, 0.13); }
     const look = o.look || 0;                                                                     // seen from behind: -1 left .. 1 right
     ctx.fillStyle = o.front ? SKIN : HAIR; ctx.beginPath(); ctx.arc(o.front ? look * 0.035 : 0, -0.68, 0.12, 0, Math.PI * 2); ctx.fill();   // (facing you: the face turns)
-    if (!o.front && Math.abs(look) > 0.05) {
-      // turning the head: a sliver of cheek and ear shows on the side you look toward, and the bun swings the other way
-      ctx.fillStyle = SKIN; ctx.beginPath(); ctx.ellipse(look * 0.085, -0.665, 0.055 * Math.abs(look), 0.095, 0, 0, Math.PI * 2); ctx.fill();
+    if (!o.front && Math.abs(look) > 0.12) {
+      // turning the head: a sliver of cheek shows at the edge of the head on the side she looks toward. It slides in from (and back
+      // out round) that edge, clipped to the head, so it never crosses the back of her head (Tom saw a line there as she turned back)
+      const k = clamp((Math.abs(look) - 0.12) / 0.6, 0, 1), side = Math.sign(look);
+      ctx.save(); ctx.beginPath(); ctx.arc(0, -0.68, 0.12, 0, Math.PI * 2); ctx.clip();
+      ctx.fillStyle = SKIN; ctx.beginPath(); ctx.ellipse(side * (0.165 - 0.08 * k), -0.665, 0.06, 0.1, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
     }
     ctx.fillStyle = HAIR; ctx.beginPath(); ctx.arc(-look * 0.02, o.front ? -0.74 : -0.7, 0.12, Math.PI, 0); ctx.fill();
     ctx.beginPath(); ctx.arc(-look * 0.05, -0.84, 0.07, 0, Math.PI * 2); ctx.fill();               // hair bun
