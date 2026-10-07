@@ -4,6 +4,7 @@
 import { BASE_Y, HORIZON, VH, smooth, clamp, ambient, waveX, waveAmp, waveCurl, waveBreak, waveHeightAt, T_LAND, T_BREAK, T_BREAK_END, T_GONE } from './ocean.js';
 import { PAUSE_ROWS, PAUSE_Y0, PAUSE_DY, SENS_OPTS, SENS_DEG, STEER_OPTS, SCREEN_MIRRORED, DONE_CHOICES, DONE_WAIT } from './sim.js';
 import { BUILD } from './version.js';
+import { pixelRatio } from './quality.js';
 import { createUI } from './ui.js';
 
 // ---------- palette ----------
@@ -67,7 +68,7 @@ export function createArt(canvas) {
   function resize(w) {
     const cssH = canvas.clientHeight || window.innerHeight, cssW = canvas.clientWidth || window.innerWidth;
     if (!(cssW > 0 && cssH > 0) || !Number.isFinite(w)) return;     // nothing to draw into right now: keep the last good size
-    W = w; dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = w; dpr = pixelRatio();
     canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
     scale = (cssH * dpr) / VH;
   }

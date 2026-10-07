@@ -7,6 +7,7 @@
 import { clamp } from './ocean.js';
 import { MIN_W, MAX_W, PAUSE_Y0, PAUSE_DY } from './sim.js';
 import { CHOICE_WAIT, readChoice } from './choice.js';
+import { QUALITY_OPTS } from './quality.js';
 
 // just beyond the second hut: about 1½ minutes' stroll (Tom, v3.8: it was too long at 200, beyond the third hut, ~2½ min)
 export const PATH_END = 120;
@@ -40,7 +41,7 @@ export const G_FINGER_OPTS = ['SLOW', 'MEDIUM', 'FAST'];
 export const G_FINGER_PX = [60, 44, 32];
 export const G_FINGER_SPEED = [1.4, 2.0, 2.8];
 
-export const GARDEN_PAUSE_ROWS = ['resume', 'album', 'finger', 'sound', 'restart'];
+export const GARDEN_PAUSE_ROWS = ['resume', 'album', 'finger', 'quality', 'sound', 'restart'];
 export const STROLL_CHOICES = ['WALK AGAIN', 'BACK TO THE ALBUM'];
 export const DONE_CHOICES = ['KEEP STROLLING', 'BACK TO THE ALBUM'];
 export const DONE_WAIT = 4;
@@ -147,7 +148,7 @@ export class Garden {
   constructor({ width = 1300, seed = Date.now() } = {}) {
     this.W = clamp(Math.round(width), MIN_W, MAX_W);
     this.rand = mulberry32(seed);
-    this.settings = { finger: 1, sound: true, steer: 0, sens: 1 };       // saved by the page (steer/sens: tilt is not used here yet)
+    this.settings = { finger: 1, quality: 0, sound: true, steer: 0, sens: 1 };   // quality: AUTO / SMOOTH / SHARP (quality.js)       // saved by the page (steer/sens: tilt is not used here yet)
     this.onSettings = null;
     this.paused = false; this.pauseRow = 0; this.restartArmed = false;
     this.recentreRequest = false; this.albumRequest = false;
@@ -241,6 +242,7 @@ export class Garden {
     if (row === 'resume') this.resumeGame();
     else if (row === 'album') { this.albumRequest = true; return; }
     else if (row === 'finger') s.finger = ((s.finger ?? 1) + d + G_FINGER_OPTS.length) % G_FINGER_OPTS.length;
+    else if (row === 'quality') s.quality = ((s.quality ?? 0) + d + QUALITY_OPTS.length) % QUALITY_OPTS.length;
     else if (row === 'sound') s.sound = !s.sound;
     else if (row === 'restart') {
       if (this.restartArmed) { const keep = this.settings; this.reset(); this.settings = keep; this.paused = false; this.state = 'play'; this.say('start'); return; }
@@ -253,7 +255,8 @@ export class Garden {
     if (idx < 0 || idx >= GARDEN_PAUSE_ROWS.length) return;
     if (GARDEN_PAUSE_ROWS[idx] !== 'restart') this.restartArmed = false;
     this.pauseRow = idx;
-    this.pauseChange(GARDEN_PAUSE_ROWS[idx] === 'finger' ? (x < this.W / 2 ? -1 : 1) : 1);
+    const row = GARDEN_PAUSE_ROWS[idx];
+    this.pauseChange(row === 'finger' || row === 'quality' ? (x < this.W / 2 ? -1 : 1) : 1);
     this.say('blip');
   }
 

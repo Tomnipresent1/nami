@@ -6,6 +6,7 @@ import { deckFront, deckDepth, deckPoint, figScale, BRIDGE_PAUSE_ROWS, BRIDGE_ST
 import { CHOICE_WAIT } from './choice.js';
 import { createUI, inked, INK, SEAL, MUTED } from './ui.js';
 import { BUILD } from './version.js';
+import { pixelRatio } from './quality.js';
 
 const START_INK = 25;            // like the Great Wave: the print starts with some colour already in
 // [colour on bare paper, final colour, ink where it starts, ink where it is done]
@@ -39,7 +40,7 @@ export function createBridgeArt(canvas) {
   function resize(w) {
     const cssH = canvas.clientHeight || window.innerHeight, cssW = canvas.clientWidth || window.innerWidth;
     if (!(cssW > 0 && cssH > 0) || !Number.isFinite(w)) return;
-    W = w; const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = w; const dpr = pixelRatio();
     canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
     scale = (cssH * dpr) / VH;
   }

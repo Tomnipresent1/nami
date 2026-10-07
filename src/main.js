@@ -9,6 +9,7 @@ import { sfx, bridgeSfx, gardenSfx, unlock, setMuted, ambience, rain, wind } fro
 import { waveAmp, T_GONE, VH as PICTURE_H } from './ocean.js';
 import { PRINTS, cardAt, drawAlbum } from './album.js';
 import { BUILD } from './version.js';
+import { view, RES_STEPS, createAutoRes } from './quality.js';
 
 const canvas = document.getElementById('screen');
 const params = new URLSearchParams(location.search);
@@ -43,7 +44,8 @@ const album = { open: true, sel: 0, note: null };
 const progress = load('nami.progress') || {};                  // { wave: { best, done }, shower: {...} }
 const prog = (id) => (progress[id] = progress[id] || { best: 0, done: 0 });
 const saveProgress = () => save('nami.progress', progress);
-const thumbs = {};                                             // a live miniature of each print for its card
+const thumbs = {};
+let albumTurn = 0;                                             // a live miniature of each print for its card
 window.__album = album;      // for tests
 window.__open = (i) => openPrint(i);
 function openPrint(i) {
@@ -71,13 +73,17 @@ function stepAlbum(dt, inp) {
 }
 function drawAlbumScreen(now) {
   // each card is the real game picture, drawn full size then shrunk onto the card
+  // (one print is repainted per frame, in turn, so the album costs no more than playing a print: v3.22, for modest phones)
   const tw = 480, th = Math.max(1, Math.round((tw * canvas.height) / Math.max(1, canvas.width)));
-  for (const L of all) {
+  albumTurn = (albumTurn + 1) % all.length;
+  all.forEach((L, i) => {
+    const c0 = thumbs[L.id];
+    if (c0 && c0.width === tw && c0.height === th && i !== albumTurn) return;
     L.art.draw(L.sim, { bare: true }, now);
     const c = thumbs[L.id] || (thumbs[L.id] = document.createElement('canvas'));
     if (c.width !== tw || c.height !== th) { c.width = tw; c.height = th; }
     c.getContext('2d').drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, tw, th);
-  }
+  });
   levels.wave.art.paper();
   const info = {};
   for (const L of all) info[L.id] = { ...prog(L.id), inProgress: L.sim.state !== 'title' && !L.sim.endless, ink: L.sim.ink };
@@ -144,11 +150,27 @@ function playEvents(L) {
   }
 }
 
+// ---- how sharp to paint (quality.js): the QUALITY row in Plum Blossom's pause menu, AUTO by default, applies to every print ----
+const autoRes = createAutoRes(load('nami.autores') ?? 0);
+let lastQuality = null;
+function applyQuality() {
+  const q = garden.settings.quality ?? 0;
+  if (q === 0 && lastQuality !== null && lastQuality !== 0) { autoRes.step = 0; autoRes.reset(); save('nami.autores', 0); }   // AUTO chosen again: measure afresh
+  lastQuality = q;
+  const res = q === 1 ? 1 : q === 2 ? 2 : RES_STEPS[autoRes.step];
+  if (res !== view.res) { view.res = res; fit(); }
+}
+window.__quality = { view, autoRes };      // for tests
+
 // ---- fixed 60 Hz logic, drawn every frame ----
 const STEP = 1 / 60;
 let last = performance.now(), acc = 0;
 function frame(now) {
-  acc += Math.min(0.1, (now - last) / 1000); last = now;
+  const gap = now - last;
+  acc += Math.min(0.1, gap / 1000); last = now;
+  const playing = !album.open && !cur.sim.paused && cur.sim.state !== 'title' && !document.hidden;
+  if ((garden.settings.quality ?? 0) === 0 && autoRes.feed(gap, playing)) save('nami.autores', autoRes.step);
+  applyQuality();
   while (acc >= STEP) {
     acc -= STEP;
     const s = cur.sim;

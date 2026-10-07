@@ -7,6 +7,7 @@ import { pathX, HUTS, KAGO, SHOW_KAGO, POND, TREE_KINDS, pickButton, KEEPER, VAS
 import { CHOICE_WAIT } from './choice.js';
 import { createUI, inked, INK, MUTED, FONT } from './ui.js';
 import { BUILD } from './version.js';
+import { pixelRatio, QUALITY_OPTS } from './quality.js';
 
 // ---- the camera (all of these can be tuned for feel) ----
 // F = zoom (bigger = a longer lens: flatter, more layered, closer to the prints' "cheated" near-orthographic look). back = how far behind
@@ -117,8 +118,21 @@ function makeTree(kind) {
     x.strokeStyle = 'rgba(90,60,60,0.55)'; x.lineWidth = 1; x.stroke();
     x.fillStyle = r() < 0.4 ? '#e09a9a' : '#d9b85f'; x.beginPath(); x.arc(tx, ty, s * 0.3, 0, Math.PI * 2); x.fill();
   }
-  return { c, w: W / TREE_PX, h: H / TREE_PX };
+  return { c, mips: halvings(c), w: W / TREE_PX, h: H / TREE_PX };
 }
+// the same picture at half, quarter and eighth size: a far-off tree is drawn from a small copy instead of shrinking the big one
+// every frame, which looks the same and is far less work for a modest phone (v3.22, Tom: jittery on a budget phone)
+function halvings(src) {
+  const out = [src];
+  while (out.length < 4) {
+    const a = out[out.length - 1], c = document.createElement('canvas');
+    c.width = Math.ceil(a.width / 2); c.height = Math.ceil(a.height / 2);
+    const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(a, 0, 0, c.width, c.height);
+    out.push(c);
+  }
+  return out;
+}
+const mipFor = (sp, px) => { for (let i = sp.mips.length - 1; i > 0; i--) if (sp.mips[i].width >= px) return sp.mips[i]; return sp.mips[0]; };
 const HUT_PX = 100;
 function makeHut(double) {
   const W = double ? 1100 : 680, H = 520, c = document.createElement('canvas'); c.width = W; c.height = H;
@@ -161,7 +175,7 @@ export function createGardenArt(canvas) {
   function resize(w) {
     const cssH = canvas.clientHeight || window.innerHeight, cssW = canvas.clientWidth || window.innerWidth;
     if (!(cssW > 0 && cssH > 0) || !Number.isFinite(w)) return;
-    W = w; const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = w; const dpr = pixelRatio();
     canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
     scale = (cssH * dpr) / VH;
   }
@@ -273,7 +287,7 @@ export function createGardenArt(canvas) {
     // the crown sways with the breeze; the trunk stays put (a shear about the base). Some trees are drawn mirrored.
     const sway = (Math.sin(time * 1.1 + t.seed) * 0.5 + Math.sin(time * 2.3 + t.seed * 2) * 0.2) * wind * 0.045;
     ctx.setTransform((t.flip ? -1 : 1) * scale, 0, sway * scale, scale, (p[0] - sway * p[1]) * scale, 0);
-    ctx.drawImage(sp.c, -w / 2, p[1] - h, w, h);
+    ctx.drawImage(mipFor(sp, w * scale), -w / 2, p[1] - h, w, h);
     ctx.restore();
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
   }
@@ -554,7 +568,7 @@ export function createGardenArt(canvas) {
   function drawPause(sim) {
     const s = sim.settings;
     const rows = GARDEN_PAUSE_ROWS.map((id) => ({
-      resume: [id, '', 'RESUME'], album: [id, '', 'BACK TO THE ALBUM'], finger: [id, 'FINGER SPEED', G_FINGER_OPTS[s.finger ?? 1]],
+      resume: [id, '', 'RESUME'], album: [id, '', 'BACK TO THE ALBUM'], finger: [id, 'FINGER SPEED', G_FINGER_OPTS[s.finger ?? 1]], quality: [id, 'QUALITY', QUALITY_OPTS[s.quality ?? 0]],
       sound: [id, 'SOUND', s.sound ? 'ON' : 'OFF'], restart: [id, '', sim.restartArmed ? 'TAP AGAIN TO START THE PRINT OVER' : 'START THE PRINT OVER'],
     })[id]);
     ui.pauseMenu(rows, { W, sel: sim.pauseRow, armed: sim.restartArmed, build: BUILD, footer: ['HOLD A FINGER TO WALK, SLIDE IT TO STEP ASIDE, LET GO TO STAND STILL', MUTED] });
