@@ -21,8 +21,13 @@ export const GTUNE = {
   bowNear: 1.8,            // pass this close to someone and you both bow
   bowSecs: 1.4,
   bowGap: 9,               // at least this long between bows (so a busy garden doesn't keep stopping you)
-  inkPerUnit: 0.2,         // ink for each unit walked (one stroll ~ 40)
+  inkPerUnit: 0.15,        // ink for each unit walked (one stroll ~ 30)
   inkBow: 1.5,
+  // gathering fallen sprigs of plum blossom into her basket (Tom's wife's idea, 2026-10-07)
+  sprigs: 15,              // about this many along each stroll
+  reach: 1.4,              // how close one must be to pick it
+  pickSecs: 1.6,           // she stops, bends, picks it up and puts it in her basket
+  inkPick: 1.5,
   aimLead: 0.25,           // how far ahead of you the finger can get (small = reversing answers at once)
 };
 // finger speed (as on the bridge): picture units of finger travel per unit of sideways step, and top sideways speed
@@ -40,6 +45,10 @@ function mulberry32(a) {
 }
 
 // ---- the garden itself: the same every visit, like the print ----
+// the pick button: a round button in the bottom-right corner (centre x, centre y, radius, in picture units). Taps are generous.
+export const pickButton = (W) => [W - 100, 600 - 100, 62];
+export const onPickButton = (x, y, W) => { const [cx, cy, r] = pickButton(W); return Math.hypot(x - cx, y - cy) < r + 22; };
+
 export const HUTS = [
   { z: 55, side: -1, double: true },         // the two thatched huts together, as in the print
   { z: 110, side: 1, double: false },
@@ -113,7 +122,7 @@ export class Garden {
     this.t = 0; this.tick = 0;
     this.ink = 0; this.inkShown = 0;
     this.events = [];
-    this.stats = { strolls: 0, bows: 0, walked: 0 };
+    this.stats = { strolls: 0, bows: 0, walked: 0, picked: 0 };
     this.endless = false; this.completeT = 0; this.choice = 0;
     this.message = null;
     this.wind = 0.5;
@@ -121,12 +130,25 @@ export class Garden {
     this.newStroll();
   }
   newStroll() {
-    this.player = { x: pathX(0), z: 0, v: 0, vx: 0, bowT: 0, bow: 0, fade: 0, step: 0, look: 0, lookTo: 0, lookT: 4 };
+    this.player = { x: pathX(0), z: 0, v: 0, vx: 0, bowT: 0, bow: 0, fade: 0, step: 0, look: 0, lookTo: 0, lookT: 4, pickT: 0, pick: 0 };
     this.drag = null;
     this.arrivedT = 0;
+    this.basket = 0;                 // sprigs gathered on this stroll
+    this.reachable = -1;             // the sprig within reach right now (the pick button shows), or -1
+    const r = this.rand;
+    // fallen sprigs of plum blossom along the way: never inside a tree, hut or the kago, always on or near the path
+    this.sprigs = [];
+    const free = (x, z) => this.garden.trees.every((t) => Math.hypot(t.x - x, t.z - z) > 1.3)
+      && HUTS.every((h) => Math.abs(x - h.x) > h.hw + 0.8 || Math.abs(z - h.z) > h.hd + 0.8);
+    const gap = (PATH_END - 15) / GTUNE.sprigs;
+    for (let z = 8; z < PATH_END - 6; z += gap * (0.5 + r())) {
+      for (let k = 0; k < 6; k++) {
+        const x = pathX(z) + (r() - 0.5) * 2 * (HALF - 0.8);
+        if (free(x, z)) { this.sprigs.push({ x, z, picked: false, seed: r() * 100, angle: (r() - 0.5) * 2 }); break; }
+      }
+    }
     // people: some linger admiring the trees (shifting about, glancing around, wandering a few steps now and then); some stroll
     // the path, coming toward you or ambling on ahead of you (Tom: more gentle movement)
-    const r = this.rand;
     this.people = [];
     let id = 0;
     const person = (kind, x, z, extra = {}) => ({ id: id++, kind, x, z, homeX: x, homeZ: z, vx: 0, vz: 0, tx: x, tz: z, wait: 1 + r() * 6,
@@ -218,7 +240,17 @@ export class Garden {
       }
       return;
     }
+    // the pick button (or the Enter / Space key): gather the sprig within reach
+    if (inp.pick || keys.includes('enter') || taps.some((t) => onPickButton(t.x, t.y, this.W))) this.startPick();
     this.stepWorld(dt, inp, true);
+  }
+
+  /** Stop, bend down, and gather the sprig within reach into the basket (does nothing if none is within reach). */
+  startPick() {
+    const p = this.player;
+    if (this.reachable < 0 || p.pickT > 0 || p.bowT > 0 || this.state !== 'play') return false;
+    p.pickT = GTUNE.pickSecs; p.pickIdx = this.reachable; p.lookTo = 0;
+    return true;
   }
 
   stepWorld(dt, inp, scoring) {
@@ -235,8 +267,19 @@ export class Garden {
     if (playing) {
       p.fade = Math.min(1, p.fade + dt / 1.5);
       if (p.bowT > 0) { p.bowT -= dt; p.bow = Math.sin(clamp(1 - p.bowT / T.bowSecs, 0, 1) * Math.PI); } else p.bow = 0;
-      const walking = !!inp.walk && p.bowT <= 0;
-      p.v += ((walking ? T.walkSpeed : 0) - p.v) * Math.min(1, dt * T.ease);
+      // gathering a sprig: she stops, bends down, and halfway through it goes into her basket
+      if (p.pickT > 0) {
+        const before = p.pickT; p.pickT -= dt;
+        p.pick = Math.sin(clamp(1 - p.pickT / T.pickSecs, 0, 1) * Math.PI);
+        const s = this.sprigs[p.pickIdx];
+        if (before > T.pickSecs / 2 && p.pickT <= T.pickSecs / 2 && s && !s.picked) {
+          s.picked = true; this.basket++; this.stats.picked++;
+          if (scoring) { this.addInk(T.inkPick); this.say('pick', { n: this.basket }); }
+        }
+      } else p.pick = 0;
+      const busy = p.bowT > 0 || p.pickT > 0;
+      const walking = !!inp.walk && !busy;
+      p.v += ((walking ? T.walkSpeed : 0) - p.v) * Math.min(1, dt * (p.pickT > 0 ? 6 : T.ease));
       if (p.v < 0.01 && !walking) p.v = 0;
       // sideways: the finger is a trackpad (as on the bridge): you move with its movement, at once; keys move you too
       const f = this.settings.finger ?? 1;
@@ -252,7 +295,7 @@ export class Garden {
         this.drag = null;
         want = clamp(inp.across || 0, -1, 1) * G_FINGER_SPEED[1];
       }
-      if (p.bowT > 0) want = 0;
+      if (busy) want = 0;
       p.vx += (want - p.vx) * Math.min(1, dt * 20);
       const z0 = p.z;
       p.x += p.vx * dt;
@@ -270,16 +313,24 @@ export class Garden {
           p.lookTo = side * (0.6 + this.rand() * 0.4); p.lookT = 1.2 + this.rand() * 1.6;
         }
       }
-      if (p.bowT > 0) p.lookTo = 0;
+      if (busy) p.lookTo = 0;
       p.look += (p.lookTo - p.look) * Math.min(1, dt * 3);
       const walked = Math.max(0, p.z - z0);
       this.stats.walked += walked;
       if (scoring) this.addInk(walked * T.inkPerUnit);
 
+      // which fallen sprig is within reach (just ahead of you or beside you): the pick button shows while there is one
+      this.reachable = -1;
+      if (p.pickT <= 0) {
+        let best = T.reach;
+        this.sprigs.forEach((s, i) => { if (!s.picked && s.z > p.z - 0.7) { const d = Math.hypot(s.x - p.x, s.z - p.z); if (d < best) { best = d; this.reachable = i; } } });
+      }
+      if (this.reachable >= 0 && scoring && !this.pickHinted) { this.pickHinted = true; this.msg('FALLEN BLOSSOM: TAP THE GLOWING BUTTON TO GATHER IT', 5); }
+
       // the end of the stroll
       if (p.z >= PATH_END) {
         this.stats.strolls++;
-        if (this.state === 'play') { this.state = 'arrived'; this.arrivedT = 0; this.choice = 0; this.drag = null; p.v = 0; p.vx = 0; this.say('arrived'); this.message = null; }
+        if (this.state === 'play') { this.state = 'arrived'; this.arrivedT = 0; this.choice = 0; this.drag = null; p.v = 0; p.vx = 0; this.reachable = -1; this.say('arrived'); this.message = null; }
         else this.newStroll();                                     // (the print finished on this stroll: carry on from the start)
       }
     } else if (this.state === 'arrived') p.fade = Math.max(0, p.fade - dt / 1.5);

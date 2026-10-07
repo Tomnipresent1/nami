@@ -140,7 +140,7 @@ function playEvents(L) {
     const f = L.sfx[e.type];
     if (!f) continue;
     if (L === levels.wave) f(e.type === 'crest' ? e.strength : e.type === 'land' ? e.zen : e.type === 'ink' ? e.level : undefined);
-    else f(e.type === 'chime' ? e.n : e.level);
+    else f(e.type === 'chime' || e.type === 'pick' ? e.n : e.level);
   }
 }
 

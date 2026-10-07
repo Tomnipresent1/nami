@@ -3,7 +3,7 @@
 // and petals blowing through the air. A paper-theatre camera: everything is a flat painted cut-out standing in the garden, and the
 // camera follows behind and above you, so the cut-outs slide past and grow as you walk in. This file only draws.
 import { VH, clamp } from './ocean.js';
-import { pathX, HUTS, KAGO, POND, TREE_KINDS, GARDEN_PAUSE_ROWS, G_FINGER_OPTS, STROLL_CHOICES, DONE_CHOICES, DONE_WAIT } from './garden.js';
+import { pathX, HUTS, KAGO, POND, TREE_KINDS, pickButton, GARDEN_PAUSE_ROWS, G_FINGER_OPTS, STROLL_CHOICES, DONE_CHOICES, DONE_WAIT } from './garden.js';
 import { CHOICE_WAIT } from './choice.js';
 import { createUI, inked, INK, MUTED } from './ui.js';
 import { BUILD } from './version.js';
@@ -271,6 +271,50 @@ export function createGardenArt(canvas) {
     ctx.drawImage(sp.c, p[0] - (sp.w * s) / 2, p[1] - sp.h * s, sp.w * s, sp.h * s);
     ctx.restore();
   }
+  // ---------- fallen blossom, the basket, the pick button ----------
+  function sprigShape(sx, sy, s, angle, flat) {
+    // a little twig of plum blossom lying on the grass (flattened, since it lies on the ground)
+    ctx.save(); ctx.translate(sx, sy); ctx.scale(s, s * flat); ctx.rotate(angle);
+    ctx.strokeStyle = '#3a2d2a'; ctx.lineWidth = 0.035; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(-0.28, 0); ctx.lineTo(0.28, 0); ctx.moveTo(0.05, 0); ctx.lineTo(0.18, -0.12); ctx.moveTo(-0.1, 0); ctx.lineTo(-0.2, 0.1); ctx.stroke();
+    for (const [bx, by] of [[-0.26, 0], [-0.12, -0.05], [0.02, 0.04], [0.16, -0.02], [0.18, -0.12], [-0.2, 0.1], [0.27, 0.02]]) {
+      ctx.fillStyle = '#fdf8f0'; ctx.beginPath(); ctx.arc(bx, by, 0.055, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#e09a9a'; ctx.beginPath(); ctx.arc(bx, by, 0.018, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+  function drawSprigs(sim, time) {
+    if (!sim.sprigs) return;
+    sim.sprigs.forEach((s, i) => {
+      if (s.picked) return;
+      const p = project(s.x, 0, s.z); if (!p || p[3] > 90) return;
+      const a = fadeFor(p[3], p[0]); if (a < 0.02) return;
+      ctx.globalAlpha = a;
+      if (i === sim.reachable) {
+        // within reach: a soft glow pulses around it
+        const pulse = 0.5 + 0.5 * Math.sin(time * 4);
+        ctx.fillStyle = `rgba(255,250,235,${0.35 + 0.3 * pulse})`;
+        ctx.beginPath(); ctx.ellipse(p[0], p[1], 0.85 * p[2], 0.3 * p[2], 0, 0, Math.PI * 2); ctx.fill();
+      }
+      sprigShape(p[0], p[1], p[2] * 2.1, s.angle, 0.6);                // (big enough to spot on a phone)
+      ctx.globalAlpha = 1;
+    });
+  }
+  let btnA = 0;
+  function drawPickButton(sim, dt, time) {
+    const show = sim.state === 'play' && !sim.paused && sim.reachable >= 0;
+    btnA += ((show ? 1 : 0) - btnA) * Math.min(1, dt * 8);
+    if (btnA < 0.02) return;
+    const [cx, cy, r] = pickButton(W), pulse = 0.5 + 0.5 * Math.sin(time * 4);
+    ctx.save(); ctx.globalAlpha = btnA;
+    ctx.fillStyle = `rgba(255,248,230,${0.25 + 0.3 * pulse})`; ctx.beginPath(); ctx.arc(cx, cy, r + 10 + 6 * pulse, 0, Math.PI * 2); ctx.fill();   // glow
+    ctx.fillStyle = 'rgba(239,228,198,0.92)'; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
+    sprigShape(cx, cy - 8, 95, -0.4, 1);
+    ui.text('GATHER', cx, cy + 30, 13, INK, 'center');
+    ctx.restore();
+  }
+
   function drawFence(f, p) {
     // a low bamboo fence: two rails and a row of thin uprights, as around the trees in the print
     const s = p[2], hw = (f.w / 2) * s, h = 0.55 * s;
@@ -352,7 +396,21 @@ export function createGardenArt(canvas) {
     }
     ctx.fillStyle = HAIR; ctx.beginPath(); ctx.arc(-look * 0.02, o.front ? -0.74 : -0.7, 0.12, Math.PI, 0); ctx.fill();
     ctx.beginPath(); ctx.arc(-look * 0.05, -0.84, 0.07, 0, Math.PI * 2); ctx.fill();               // hair bun
+    if (o.ornament) { ctx.fillStyle = '#c4473a'; ctx.beginPath(); ctx.arc(-look * 0.05 + 0.07, -0.87, 0.028, 0, Math.PI * 2); ctx.fill(); }   // a hairpin
     ctx.restore();
+    if (o.basket != null) {
+      // her basket, hanging at her side, filling up with the blossom she gathers
+      const bx = 0.31, by = -0.42;
+      ctx.strokeStyle = '#7a5a3a'; ctx.lineWidth = 0.025; ctx.beginPath(); ctx.arc(bx, by - 0.16, 0.1, Math.PI, 0); ctx.stroke();   // handle
+      for (let i = 0; i < Math.min(o.basket, 9); i++) {
+        const a = (i * 2.39) % 6.28, rr = 0.03 + (i % 3) * 0.025;
+        ctx.fillStyle = '#fdf8f0'; ctx.beginPath(); ctx.arc(bx + Math.cos(a) * rr * 1.6, by - 0.17 - Math.abs(Math.sin(a)) * rr, 0.035, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.fillStyle = '#c9a55f'; ctx.beginPath(); ctx.moveTo(bx - 0.12, by - 0.16); ctx.lineTo(bx + 0.12, by - 0.16); ctx.lineTo(bx + 0.09, by); ctx.lineTo(bx - 0.09, by); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(110,80,40,0.7)'; ctx.lineWidth = 0.012;
+      ctx.beginPath(); for (let k = -3; k <= 3; k++) { ctx.moveTo(bx + k * 0.03, by - 0.16); ctx.lineTo(bx + k * 0.025, by); } ctx.moveTo(bx - 0.11, by - 0.08); ctx.lineTo(bx + 0.11, by - 0.08); ctx.stroke();
+      ctx.strokeStyle = INK; ctx.lineWidth = 0.018; ctx.beginPath(); ctx.moveTo(bx - 0.12, by - 0.16); ctx.lineTo(bx + 0.12, by - 0.16); ctx.lineTo(bx + 0.09, by); ctx.lineTo(bx - 0.09, by); ctx.closePath(); ctx.stroke();
+    }
     ctx.restore();
   }
 
@@ -392,13 +450,14 @@ export function createGardenArt(canvas) {
     const a = clamp((sim.arrivedT - 0.8) / 0.7, 0, 1);
     ctx.globalAlpha = a * 0.5; ctx.fillStyle = '#f4e7d6'; ctx.fillRect(0, 0, W, VH); ctx.globalAlpha = a;
     ui.text('BEYOND THE THIRD HUT', W / 2, 205, 40, INK, 'center', 'bold');
-    ui.text(sim.stats.strolls === 1 ? 'A STROLL THROUGH THE PLUM GARDEN' : 'STROLL ' + sim.stats.strolls + ' COMPLETE', W / 2, 256, 20, MUTED, 'center');
+    ui.text(sim.basket > 0 ? 'YOU GATHERED ' + sim.basket + (sim.basket === 1 ? ' SPRIG' : ' SPRIGS') + ' OF BLOSSOM'
+      : sim.stats.strolls === 1 ? 'A STROLL THROUGH THE PLUM GARDEN' : 'STROLL ' + sim.stats.strolls + ' COMPLETE', W / 2, 256, 20, MUTED, 'center');
     ctx.globalAlpha = 1;
     ui.choices(STROLL_CHOICES, { W, sel: sim.choice, ready: sim.arrivedT >= CHOICE_WAIT + 0.8, alpha: a });
   }
   function drawComplete(sim) {
     ctx.globalAlpha = clamp(sim.completeT / 2, 0, 1);
-    ui.text('KAMATA', W / 2, 185, 48, INK, 'center', 'bold');
+    ui.text('PLUM BLOSSOM', W / 2, 185, 48, INK, 'center', 'bold');
     ui.text('COMPLETE', W / 2, 235, 24, INK, 'center');
     ui.seal(W - 90, VH - 90, 1.6);
     ctx.globalAlpha = 1;
@@ -426,6 +485,7 @@ export function createGardenArt(canvas) {
     drawGround(ink);
     drawFarBand(ink);                                  // after the ground, so the far trees stand over the horizon line
     drawShadows(sim, ink);
+    drawSprigs(sim, time);
 
     // everything standing in the garden, far to near
     const list = [];
@@ -444,7 +504,8 @@ export function createGardenArt(canvas) {
       else if (kind === 'kago') drawKago(q, sim.wind, time);
       else if (kind === 'person') drawPerson(q, { robe: cloth(o.dress), obi: OUTFITS[o.dress % OUTFITS.length][3], haori: OUTFITS[o.dress % OUTFITS.length][4], front: o.face,
         step: o.step, bow: o.bowT > 0 ? Math.sin((o.bowT / 1.4) * Math.PI) : 0, look: o.head, idle: Math.sin(time * 0.7 + o.phase) });
-      else drawPerson(q, { robe: YOU, obi: '#e8d9b0', front: false, step: o.step, bow: o.bow, alpha: o.fade, look: o.look });
+      else drawPerson(q, { robe: YOU, obi: '#e8d9b0', front: false, step: o.step, bow: Math.max(o.bow, Math.min(1, o.pick * 1.25)), alpha: o.fade, look: o.look,
+        basket: sim.basket, ornament: true });
     }
 
     drawPetals(sim.paused ? 0 : dt, sim.wind, showYou && p.v > 0.1 ? 1 : 0);
@@ -452,6 +513,8 @@ export function createGardenArt(canvas) {
     if (uiState.bare) return;
     if (sim.state !== 'title') {
       ui.inkBar(sim.inkShown / 100); ui.message(sim.message, W);
+      ui.text('BASKET  ' + sim.basket, 24, 70, 13, INK, 'left');
+      drawPickButton(sim, dt, time);
       if (sim.state === 'arrived') drawArrived(sim);
       if (sim.state === 'complete') drawComplete(sim);
     }

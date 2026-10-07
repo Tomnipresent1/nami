@@ -5,7 +5,7 @@ import { VH } from './ocean.js';
 export const PRINTS = [
   { id: 'wave', title: 'THE GREAT WAVE', artist: 'HOKUSAI', ready: true },
   { id: 'shower', title: 'SUDDEN SHOWER', artist: 'HIROSHIGE', ready: true },
-  { id: 'kamata', title: 'KAMATA', artist: 'HIROSHIGE', ready: true },
+  { id: 'kamata', title: 'PLUM BLOSSOM', artist: 'HIROSHIGE', ready: true },     // (Hiroshige's "Plum Garden at Kamata"; id kept so saved progress stays)
 ];
 
 const PAPER = '#efe4c6', INK = '#16213b', SEAL = '#b3342b', MUTED = '#4a5470';
