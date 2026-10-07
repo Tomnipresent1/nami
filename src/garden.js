@@ -32,7 +32,7 @@ export const GTUNE = {
   inkGift: 3,              // for handing your basket to the tea-house keeper
   // the tea-house ending, unhurried: seconds for each part (v3.11, Tom: the pause before the bow was too long)
   // v3.15 (Tom): after the bow she arranges the vase like ikebana: three stems, one at a time (~1 s each), then a moment to regard it
-  tea: { settle: 0.05, stem: 1.0, regard: 0.9, linger: 1.6 },
+  tea: { settle: 0.05, stem: 1.25, regard: 0.9, linger: 1.6 },          // (v3.16, Tom: the twigs moved a touch too fast at 1.0)
   aimLead: 0.25,           // how far ahead of you the finger can get (small = reversing answers at once)
 };
 // finger speed (as on the bridge): picture units of finger travel per unit of sideways step, and top sideways speed
