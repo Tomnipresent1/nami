@@ -3,7 +3,7 @@
 // and petals blowing through the air. A paper-theatre camera: everything is a flat painted cut-out standing in the garden, and the
 // camera follows behind and above you, so the cut-outs slide past and grow as you walk in. This file only draws.
 import { VH, clamp } from './ocean.js';
-import { pathX, HUTS, KAGO, POND, TREE_KINDS, pickButton, KEEPER, VASE, OFFER_SPOT, GTUNE, GARDEN_PAUSE_ROWS, G_FINGER_OPTS, STROLL_CHOICES, DONE_CHOICES, DONE_WAIT } from './garden.js';
+import { pathX, HUTS, KAGO, POND, TREE_KINDS, pickButton, KEEPER, VASE, COUNTER, BASKET_SPOT, GTUNE, GARDEN_PAUSE_ROWS, G_FINGER_OPTS, STROLL_CHOICES, DONE_CHOICES, DONE_WAIT } from './garden.js';
 import { CHOICE_WAIT } from './choice.js';
 import { createUI, inked, INK, MUTED } from './ui.js';
 import { BUILD } from './version.js';
@@ -376,10 +376,57 @@ export function createGardenArt(canvas) {
     ctx.closePath(); ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 0.025; ctx.stroke();
     ctx.restore();
   }
+  // ---------- the tea house ending ----------
+  const smoother = (u) => { u = clamp(u, 0, 1); return u * u * u * (u * (u * 6 - 15) + 10); };   // eases in and out, softly
+  const lerp3 = (a, b, u, arc = 0) => [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u + Math.sin(u * Math.PI) * arc, a[2] + (b[2] - a[2]) * u];
+  /** Where the basket, the vase and a handful of blossom are at this moment of the hand-over, and how far the keeper leans. */
+  function teaScene(sim, p) {
+    const o = sim.offer, out = { basket: null, vase: null, handful: null, keeperLean: 0 };
+    if (!o || !sim.handedOver) return out;
+    const S = GTUNE.tea, ph = o.phase, t = o.t, moved = o.moved || 0;
+    const restB = [BASKET_SPOT.x, BASKET_SPOT.y, BASKET_SPOT.z], restV = [VASE.x, VASE.y, VASE.z];
+    // her basket: lifted from her side and set gently down on the counter
+    if (ph === 'place') out.basket = { pos: lerp3([p.x + 0.3, 0.45, p.z], restB, smoother(t / S.place), 0.22), count: sim.basket };
+    else out.basket = { pos: restB, count: sim.basket };
+    if (ph === 'place') return out;
+    // the vase: the keeper brings it up from behind the counter and stands it beside the basket
+    if (ph === 'vase') {
+      const u = smoother(t / S.vase);
+      out.vase = { pos: lerp3([KEEPER.x, COUNTER.top - 0.45, KEEPER.z], restV, u, 0.12), count: sim.vase, alpha: clamp((t / S.vase) * 3, 0, 1) };
+      out.keeperLean = 0.3 * Math.sin(u * Math.PI);
+    } else out.vase = { pos: restV, count: sim.vase, alpha: 1 };
+    // two gentle handfuls of blossom, basket to vase
+    let inFlight = 0;
+    if (ph === 'fill') {
+      const u = clamp(t / S.fill, 0, 1), half = Math.ceil(sim.basket / 2), handful = o.fill === 1 ? half : sim.basket - half;
+      out.keeperLean = 0.45 * Math.sin(u * Math.PI);
+      if (u > 0.25 && u < 0.7) {
+        const v = smoother((u - 0.25) / 0.45);
+        out.handful = { pos: lerp3([restB[0], restB[1] + 0.2, restB[2]], [restV[0], restV[1] + 0.35, restV[2]], v, 0.3), alpha: 1 };
+        inFlight = handful;
+      }
+    }
+    out.basket.count = Math.max(0, sim.basket - moved - inFlight);
+    return out;
+  }
+  // the wooden counter at the front of the tea house
+  function drawCounter() {
+    const c = COUNTER, P = (x, y, z) => project(x, y, z);
+    const f0 = P(c.x0, 0, c.z), f1 = P(c.x1, 0, c.z), f2 = P(c.x1, c.top, c.z), f3 = P(c.x0, c.top, c.z), b2 = P(c.x1, c.top, c.z + c.depth), b3 = P(c.x0, c.top, c.z + c.depth);
+    if (!(f0 && f1 && f2 && f3 && b2 && b3)) return;
+    const poly = (pts) => { ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); ctx.closePath(); };
+    ctx.save(); ctx.globalAlpha = fadeFor(f0[3], (f0[0] + f1[0]) / 2);
+    ctx.strokeStyle = INK; ctx.lineWidth = 1.2;
+    ctx.fillStyle = '#b48a5a'; poly([f3, f2, b2, b3]); ctx.fill(); ctx.stroke();                // the top
+    ctx.fillStyle = '#8a6440'; poly([f0, f1, f2, f3]); ctx.fill(); ctx.stroke();                // the front
+    ctx.strokeStyle = 'rgba(50,30,15,0.35)'; ctx.lineWidth = 1;
+    for (let i = 1; i < 6; i++) { const u = i / 6, x = c.x0 + (c.x1 - c.x0) * u, a = P(x, 0.04, c.z), b = P(x, c.top - 0.04, c.z); if (a && b) { ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); } }
+    ctx.restore();
+  }
   // the vase on the tea house's counter, holding the blossom she has handed over (it fills up over the strolls)
   function drawVase(p, count, time, wind) {
     const s = p[2];
-    ctx.save(); ctx.globalAlpha = fadeFor(p[3], p[0]); ctx.translate(p[0], p[1]); ctx.scale(s, s);
+    ctx.save(); ctx.globalAlpha *= fadeFor(p[3], p[0]); ctx.translate(p[0], p[1]); ctx.scale(s, s);
     const n = Math.min(count, 24);
     ctx.strokeStyle = '#3a2d2a'; ctx.lineWidth = 0.02; ctx.lineCap = 'round';
     for (let i = 0; i < n; i++) {
@@ -542,15 +589,17 @@ export function createGardenArt(canvas) {
     { const q = project(KAGO.x, 0, KAGO.z); if (q && q[3] < 230) list.push([q[3], 'kago', KAGO, q]); }
     for (const o of sim.people) { const q = project(o.x, 0, o.z); if (q && q[3] < 200) list.push([q[3], 'person', o, q]); }
     if (showYou) { const q = project(p.x, 0, p.z); if (q) list.push([q[3], 'you', p, q]); }
+    // ---- the tea house: the counter, the keeper behind it, her basket and the vase on it (all eased in and out, nothing pops) ----
+    const tea = teaScene(sim, p);
+    { const q = project((COUNTER.x0 + COUNTER.x1) / 2, 0, COUNTER.z); if (q && q[3] < 200) list.push([q[3], 'counter', null, q]); }
     { const q = project(KEEPER.x, 0, KEEPER.z); if (q && q[3] < 200) list.push([q[3], 'keeper', sim.keeper, q]); }
-    { const q = project(VASE.x, VASE.y, VASE.z); if (q && q[3] < 120) list.push([q[3], 'vase', null, q]); }
-    // the basket passing from her hands to the keeper's
-    const give = sim.offer && sim.offer.phase === 'give' ? clamp(sim.offer.t / GTUNE.giveSecs, 0, 1) : -1;
-    if (give >= 0) {
-      const e = give * give * (3 - 2 * give), from = [p.x + 0.3, 0.45, p.z], to = [KEEPER.x - 0.25, 0.75, KEEPER.z];
-      const q = project(from[0] + (to[0] - from[0]) * e, from[1] + (to[1] - from[1]) * e + Math.sin(give * Math.PI) * 0.15, from[2] + (to[2] - from[2]) * e);
-      if (q) list.push([q[3] - 0.01, 'basket', null, q]);
-    }
+    const onCounter = (kind, pos, data) => {                     // things on (or above) the counter are drawn just after it
+      const q = project(pos[0], pos[1], pos[2]), c = project((COUNTER.x0 + COUNTER.x1) / 2, 0, COUNTER.z);
+      if (q && c) list.push([Math.min(q[3], c[3]) - 0.02, kind, data, q]);
+    };
+    if (tea.basket) onCounter('basket', tea.basket.pos, tea.basket);
+    if (tea.vase) onCounter('vase', tea.vase.pos, tea.vase);
+    if (tea.handful) onCounter('handful', tea.handful.pos, tea.handful);
     list.sort((a, b) => b[0] - a[0]);
     for (const [, kind, o, q] of list) {
       if (kind !== 'you' && fadeFor(q[3], q[0]) < 0.02) continue;
@@ -560,10 +609,12 @@ export function createGardenArt(canvas) {
       else if (kind === 'kago') drawKago(q, sim.wind, time);
       else if (kind === 'person') drawPerson(q, { robe: cloth(o.dress), obi: OUTFITS[o.dress % OUTFITS.length][3], haori: OUTFITS[o.dress % OUTFITS.length][4], front: o.face,
         step: o.step, bow: o.bowT > 0 ? Math.sin((o.bowT / 1.4) * Math.PI) : 0, look: o.head, idle: Math.sin(time * 0.7 + o.phase) });
+      else if (kind === 'counter') drawCounter();
       else if (kind === 'keeper') drawPerson(q, { robe: '#2f3d52', obi: '#ece6d6', front: true, step: 0, apron: true,
-        bow: o.bowT > 0 ? Math.sin((o.bowT / GTUNE.bowSecs) * Math.PI) : 0, look: 0, idle: Math.sin(time * 0.6) * 0.5 });
-      else if (kind === 'vase') drawVase(q, sim.vase, time, sim.wind);
-      else if (kind === 'basket') { ctx.save(); ctx.translate(q[0], q[1]); ctx.scale(q[2], q[2]); basketShape(0, 0.08, sim.basket); ctx.restore(); }
+        bow: Math.max(o.bowT > 0 ? Math.sin((o.bowT / GTUNE.bowSecs) * Math.PI) : 0, tea.keeperLean), look: 0, idle: Math.sin(time * 0.6) * 0.5 });
+      else if (kind === 'vase') { ctx.save(); ctx.globalAlpha = o.alpha; drawVase(q, o.count, time, sim.wind); ctx.restore(); }
+      else if (kind === 'basket') { ctx.save(); ctx.translate(q[0], q[1]); ctx.scale(q[2], q[2]); basketShape(0, 0.02, o.count); ctx.restore(); }
+      else if (kind === 'handful') { ctx.save(); ctx.globalAlpha = o.alpha; sprigShape(q[0], q[1], q[2] * 0.9, -0.5, 1); ctx.restore(); }
       else drawPerson(q, { robe: YOU, obi: '#e8d9b0', front: false, step: o.step, bow: Math.max(o.bow, Math.min(1, o.pick * 1.25)), alpha: o.fade, look: o.look,
         basket: sim.handedOver ? null : sim.basket, ornament: true });
     }
