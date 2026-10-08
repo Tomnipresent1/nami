@@ -15,7 +15,8 @@ import { pixelRatio } from './quality.js';
 // the buildings; subtle. (The sky shows above the roofs, the top ~SKY_GLOW_Y of the picture.)
 // v1.4.11 (Tom): the glow a tiny bit stronger, and a very few small stars up in the dark
 const SKY_TOP = '#15181d', SKY_MID = '#28303b', SKY_GLOW = '#48546a', SKY_GLOW_Y = 250;
-const STARS = Array.from({ length: 11 }, (_, i) => ({ u: (i * 0.618034 + 0.07) % 1, y: 8 + ((i * 37) % 90), r: 0.6 + ((i * 13) % 5) * 0.12, tw: i * 1.7 }));
+// (v1.4.21, Tom: a few more)
+const STARS = Array.from({ length: 24 }, (_, i) => ({ u: (i * 0.618034 + 0.07) % 1, y: 6 + ((i * 37) % 110), r: 0.55 + ((i * 13) % 5) * 0.12, tw: i * 1.7 }));
 const ROOF = '#2c3035', SOFFIT = '#121110', FASCIA = '#3a3d40';              // (the other houses along the street)
 // the teahouse's roofs (v1.4.11, Tom): a deep red, a little deeper than the lamplighter's coat, not bright or garish
 const TEA_ROOF = '#3e1d19', TEA_EDGE = '#2c1512';
@@ -44,6 +45,8 @@ const UPPER_LIGHTS = [
   { block: 0, storey: 0, x: 16.6, spread: 1.7, colour: '#b9cbf2', strength: 0.92, glow: 'rgba(110,140,220,0.22)' },
   // (v1.4.20) warm yellow in the near block's balcony storey, a little more vibrant than Tom's mockup
   { block: 2, storey: 0, x: 31.55, spread: 1.6, colour: '#ffd36a', strength: 0.95, glow: 'rgba(255,190,70,0.26)' },
+  // (v1.4.21) red in the recess's storey, brightest over the main door
+  { block: 1, storey: 0, x: 24.25, spread: 1.7, colour: '#f2604a', strength: 0.88, glow: 'rgba(255,70,50,0.24)' },
 ];
 
 // ---- the teahouse in plan (metres): three lines round its ground floor, each walked in the path's direction ----

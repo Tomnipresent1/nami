@@ -6,7 +6,7 @@ export const PRINTS = [
   { id: 'wave', title: 'THE GREAT WAVE', artist: 'HOKUSAI', ready: true },
   { id: 'shower', title: 'SUDDEN SHOWER', artist: 'HIROSHIGE', ready: true },
   { id: 'kamata', title: 'PLUM BLOSSOM', artist: 'HIROSHIGE', ready: true },     // (Hiroshige's "Plum Garden at Kamata"; id kept so saved progress stays)
-  { id: 'lamp', title: 'THE LAMPLIGHTER', artist: 'AFTER KIYOCHIKA', ready: true },   // (Meiji Tokyo at night: our own composition)
+  { id: 'lamp', title: 'THE LAMPLIGHTER', artist: 'AFTER KIYOCHIKA', ready: true, note: 'UNDER CONSTRUCTION' },   // (Meiji Tokyo at night: our own composition; still being made, Tom v1.4.21)
 ];
 
 const PAPER = '#efe4c6', INK = '#16213b', SEAL = '#b3342b', MUTED = '#4a5470';
@@ -66,6 +66,7 @@ export function drawAlbum(ctx, o) {
     text(p.title, cx, c.y + c.h + 36, Math.min(22, c.w / 12), p.ready ? INK : MUTED, 'bold');      // (smaller on narrow cards)
     text(p.artist, cx, c.y + c.h + 62, 13, MUTED);
     text(cardStatus(p, info), cx, c.y + c.h + 88, Math.min(14, c.w / 15), p.ready ? INK : MUTED);
+    if (p.note) text(p.note, cx, c.y + c.h + 110, Math.min(12, c.w / 17), '#a8452f', 'italic');      // a little label under the card
   });
 
   if (o.note && o.note.t > 0) { ctx.globalAlpha = Math.min(1, o.note.t / 0.6); text(o.note.text, W / 2, 548, 20, INK, 'italic'); ctx.globalAlpha = 1; }
