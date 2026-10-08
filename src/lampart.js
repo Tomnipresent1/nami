@@ -36,6 +36,13 @@ const LANTERN_RED = ['#a3261c', '#8e1e16', '#741811'];     // an unlit lantern: 
 const LR = [0.2, 0.27];                                   // a lantern's half-width and half-height (metres)
 const WARM_D = 2.6;                                       // how far (metres) a lantern's light reaches
 const UPPER_WARM = 0;                                     // how lit the upper floors' windows are: fixed (0 = lights off)
+// fixed coloured lights inside the upper floors (Tom's mockup, research 37): which block (0 left, 1 recess, 2 near) and storey (0 =
+// the balcony storey), where along the street (X, metres) the brightest panel is, how fast it fades panel by panel (spread, metres),
+// the light's colour and how strongly it tints the paper, and the soft glow it casts on the wall round it. Blue first (v1.4.19);
+// Tom's notes: red on the recess, orange on the left block's top storey, warm yellow on the near block (next rounds).
+const UPPER_LIGHTS = [
+  { block: 0, storey: 0, x: 16.6, spread: 1.7, colour: '#b9cbf2', strength: 0.92, glow: 'rgba(110,140,220,0.22)' },
+];
 
 // ---- the teahouse in plan (metres): three lines round its ground floor, each walked in the path's direction ----
 const RAIL_LINE = [[-2, 0], [A + 2, 0], [A + 2, RECESS], [B - 2, RECESS], [B - 2, 0], [60, 0]];       // the railing (the walkway's open side)
@@ -201,7 +208,7 @@ export function createLampArt(canvas) {
       }
     }
     // each block's front: storeys of paper windows with balconies, a roof between storeys, the top roof
-    for (const b of BLOCKS) {
+    BLOCKS.forEach((b, bi) => {
       const p = UP_LINE[b.seg], q = UP_LINE[b.seg + 1], out = [0, -1], topY = FLOOR1 + b.storeys * STOREY;
       // a solid backing at the set-back line, the full height: wherever a panel doesn't quite meet the next, you see building, not sky
       poly(wallQuad([p[0], p[1] + 0.9], [q[0], q[1] + 0.9], BEAM_H - 0.1, topY + 0.3), WOOD_DARK);
@@ -213,19 +220,30 @@ export function createLampArt(canvas) {
         poly(wallQuad(fp, fq, k === 0 ? BEAM_H - 0.1 : y0, y1 + 0.3), WOOD);
         // over the set-back storey: the ceiling under the storey (or roof) above, which juts out to the front line
         if (set) poly([[p[0], y1 + 0.3, p[1]], [q[0], y1 + 0.3, q[1]], [q[0], y1 + 0.3, q[1] + set], [p[0], y1 + 0.3, p[1] + set]], SOFFIT);
+        const lights = UPPER_LIGHTS.filter((L) => L.block === bi && L.storey === k);
         pieces([fp, fq], 1.3, (a, c) => {
-          // the upper floors stay as they are while he lights the lanterns below (Tom v1.4.18: "lights off" for now, so the eye
-          // stays on the job; UPPER_WARM 0 = always dark; his mockup for a fixed lit look is next)
-          const wm = UPPER_WARM * (k === 0 ? 0.6 : 0.3);
-          poly(wallQuad([a[0] + 0.08, a[1] - 0.01], [c[0] - 0.08, c[1] - 0.01], y0 + 0.5, y1 - 0.1), lit(SHOJI, wm));
+          // the upper floors don't change as he lights the lanterns below (Tom v1.4.18: it pulled the eye from the job). Instead
+          // a fixed coloured light inside (UPPER_LIGHTS, Tom's mockup v1.4.19): brightest behind one panel, fading panel by panel
+          const mx = (a[0] + c[0]) / 2;
+          let col = lit(SHOJI, UPPER_WARM * (k === 0 ? 0.6 : 0.3));
+          for (const L of lights) col = mixHex(col, L.colour, L.strength * Math.exp(-(((mx - L.x) / L.spread) ** 2)));
+          poly(wallQuad([a[0] + 0.08, a[1] - 0.01], [c[0] - 0.08, c[1] - 0.01], y0 + 0.5, y1 - 0.1), col);
         });
+        // and its soft glow on the wall round it
+        for (const L of lights) {
+          const g0 = proj([[L.x, (y0 + y1) / 2, fp[1] - 0.05]]);
+          if (!g0) continue;
+          const [gx, gy, gk] = g0[0], r = L.spread * 1.8 * gk, g = ctx.createRadialGradient(gx, gy, 2, gx, gy, r);
+          g.addColorStop(0, L.glow); g.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.fillRect(gx - r, gy - r, 2 * r, 2 * r); ctx.restore();
+        }
         ctx.strokeStyle = WOOD_DARK; ctx.lineWidth = 1; ctx.beginPath();
         for (let yy = y0 + 0.85; yy < y1 - 0.1; yy += 0.35) line([fp[0], yy, fp[1] - 0.02], [fq[0], yy, fq[1] - 0.02]);
         ctx.stroke();
         if (k < b.storeys - 1) roofAlong(p, q, out, y1 + 0.3, 0.7, 1.2, TEA_ROOF, TEA_EDGE);   // a little roof between storeys
       }
       roofAlong(p, q, out, FLOOR1 + b.storeys * STOREY, 0.8, b.depth * 0.5, TEA_ROOF, TEA_EDGE);
-    }
+    });
   }
   /** People upstairs and the balcony rails in front of them (the lowest storey of each block has a balcony over the walkway). */
   function drawBalconies(sim, time) {
