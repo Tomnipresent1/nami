@@ -32,6 +32,7 @@ const KIMONO = ['#4a3a4a', '#3a4a5a', '#5a4038', '#3d4a44', '#4d4536'];
 const SKIN = '#d9b38c';
 const COAT = ['#6e221c', '#a8382c'];                      // the lamplighter's coat: deep red, with a pale collar
 const BODY_UNITS = 35, PERSON_H = 1.62;                   // a drawn person is ~35 units tall = 1.62 m
+const LANTERN_RED = ['#a3261c', '#8e1e16', '#741811'];     // an unlit lantern: red paper in the dark (lit, it goes vermilion with a warm heart)
 const LR = [0.2, 0.27];                                   // a lantern's half-width and half-height (metres)
 const WARM_D = 2.6;                                       // how far (metres) a lantern's light reaches
 
@@ -134,7 +135,13 @@ export function createLampArt(canvas) {
     const ox = out[0] * overhang, oz = out[1] * overhang, bx = -out[0] * depthBack, bz = -out[1] * depthBack;
     const e0 = [p[0] + ox, y, p[1] + oz], e1 = [q[0] + ox, y, q[1] + oz];
     poly([e0, e1, [q[0], y, q[1]], [p[0], y, p[1]]], SOFFIT);                                                   // the eave's underside
-    poly([e0, e1, [q[0] + bx, y + depthBack * 0.36, q[1] + bz], [p[0] + bx, y + depthBack * 0.36, p[1] + bz]], fill);   // the tiled slope, up to the ridge
+    // the tiled slope, up to the ridge: only where it truly faces the camera. From down in the street, below the eaves, the top of a
+    // roof this pitch can't be seen (only its underside and edge); painting it anyway made a strange red shape above the eave (v1.4.13)
+    const r0 = [p[0] + bx, y + depthBack * 0.36, p[1] + bz], r1 = [q[0] + bx, y + depthBack * 0.36, q[1] + bz];
+    const a = [e1[0] - e0[0], e1[1] - e0[1], e1[2] - e0[2]], b = [r0[0] - e0[0], r0[1] - e0[1], r0[2] - e0[2]];
+    let n = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+    if (n[1] < 0) n = n.map((v) => -v);                                                                       // (the side facing up)
+    if (n[0] * (CAM.x - e0[0]) + n[1] * (CAM.y - e0[1]) + n[2] * (CAM.z - e0[2]) > 0) poly([e0, e1, r1, r0], fill);
     poly([e0, e1, [e1[0], y - 0.22, e1[2]], [e0[0], y - 0.22, e0[2]]], edge);                                  // the eave's edge
   }
 
@@ -309,9 +316,14 @@ export function createLampArt(canvas) {
     ctx.strokeStyle = POST; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(x, top[0][1]); ctx.lineTo(x, y - ry); ctx.stroke();
     if (g > 0.01) {
       const grd = ctx.createRadialGradient(x, y - 0.03 * k, 1, x, y, ry);
-      grd.addColorStop(0, mixHex('#4a2420', '#ffe0a8', g)); grd.addColorStop(0.55, mixHex('#3a1d1a', '#f06a3a', g)); grd.addColorStop(1, mixHex('#3a1d1a', '#c8331f', g));
+      // (v1.4.13, Tom: a brighter red, like a real chochin: vermilion paper, glowing warm at the heart when lit)
+      grd.addColorStop(0, mixHex(LANTERN_RED[0], '#fff0c8', g)); grd.addColorStop(0.55, mixHex(LANTERN_RED[1], '#ff4b2b', g)); grd.addColorStop(1, mixHex(LANTERN_RED[2], '#e3231a', g));
       ctx.fillStyle = grd;
-    } else ctx.fillStyle = '#3a1d1a';
+    } else {
+      const grd = ctx.createRadialGradient(x, y - 0.03 * k, 1, x, y, ry);
+      grd.addColorStop(0, LANTERN_RED[0]); grd.addColorStop(0.55, LANTERN_RED[1]); grd.addColorStop(1, LANTERN_RED[2]);
+      ctx.fillStyle = grd;
+    }
     ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = 'rgba(20,10,8,0.35)'; ctx.lineWidth = 0.8; ctx.beginPath();
     for (let j = -2; j <= 2; j++) { const yy = y + j * ry * 0.33, ww = rx * Math.sqrt(1 - (j * 0.33) ** 2); ctx.moveTo(x - ww, yy); ctx.lineTo(x + ww, yy); }

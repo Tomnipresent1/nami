@@ -90,10 +90,9 @@ export function exitS(W) {
   return (exitCache[W] = s);
 }
 
-// the LIGHT button: round, like Plum Blossom's GATHER (centre x, centre y, radius). Taps are generous. TOP RIGHT here (v1.4.9): his walk
-// runs right along the bottom of the picture (in at the left, past the door in the middle, out at the right), so up here, over the
-// near block's top storey, it never covers him
-export const lightButton = (W) => [W - 92, 100, 54];
+// the LIGHT button: round, like Plum Blossom's GATHER (centre x, centre y, radius). Taps are generous. BOTTOM LEFT (v1.4.13, Tom: try it
+// there; tucked into the corner, it may brush his feet for the first moment at the start)
+export const lightButton = (W) => [78, 600 - 70, 54];
 export const onLightButton = (x, y, W) => { const [cx, cy, r] = lightButton(W); return Math.hypot(x - cx, y - cy) < r + 22; };
 
 export const LAMP_PAUSE_ROWS = ['resume', 'album', 'sound', 'restart'];
