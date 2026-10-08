@@ -23,7 +23,7 @@ const WOOD = '#2a241f', WOOD_SIDE = '#221d19', WOOD_DARK = '#171512', POST = '#1
 const RAIL = ['#2e2822', '#6e5236'];                      // the railing's boards: dark, and warmed by a lantern
 const SHOJI = ['#2e2f2b', '#f0c98a'];                     // paper windows upstairs
 const LATTICE = ['#141210', '#d39a5a'];                   // the paper behind the ground floor's lattice
-const NOREN = ['#1c2438', '#4a6696'];                     // the indigo noren over the main door
+const NOREN = ['#141a28', '#30406a'];                     // the indigo noren over the main door (deep: a paler one read as a hole to the sky)
 const GROUND = ['#3b3a34', '#211f1b'];
 const FAR_WALL = ['#24221e', '#2a2722', '#1f1d1a'], FAR_SIDE = '#1c1a17';
 const SIL = '#17181b';
@@ -134,7 +134,7 @@ export function createLampArt(canvas) {
     const ox = out[0] * overhang, oz = out[1] * overhang, bx = -out[0] * depthBack, bz = -out[1] * depthBack;
     const e0 = [p[0] + ox, y, p[1] + oz], e1 = [q[0] + ox, y, q[1] + oz];
     poly([e0, e1, [q[0], y, q[1]], [p[0], y, p[1]]], SOFFIT);                                                   // the eave's underside
-    poly([e0, e1, [q[0] + bx * 0.5, y + depthBack * 0.36, q[1] + bz * 0.5], [p[0] + bx * 0.5, y + depthBack * 0.36, p[1] + bz * 0.5]], fill);   // the tiled slope (where it shows)
+    poly([e0, e1, [q[0] + bx, y + depthBack * 0.36, q[1] + bz], [p[0] + bx, y + depthBack * 0.36, p[1] + bz]], fill);   // the tiled slope, up to the ridge
     poly([e0, e1, [e1[0], y - 0.22, e1[2]], [e0[0], y - 0.22, e0[2]]], edge);                                  // the eave's edge
   }
 
@@ -176,21 +176,32 @@ export function createLampArt(canvas) {
         if (!facing(p, q, out)) continue;
         const near = p[1] < q[1] ? p : q;
         const base = FLOOR1 + other.storeys * STOREY + 0.2;
-        poly(wallQuad([near[0], near[1]], [near[0], near[1] + b.depth], FLOOR1, top), WOOD_SIDE);
+        poly(wallQuad([near[0], near[1]], [near[0], near[1] + b.depth], BEAM_H - 0.1, top), WOOD_SIDE);   // (down to the walkway roof: no slit of sky)
         ctx.strokeStyle = WOOD_DARK; ctx.lineWidth = 1; ctx.beginPath();
         for (let k = 1; k <= b.storeys; k++) line([near[0], FLOOR1 + k * STOREY, near[1]], [near[0], FLOOR1 + k * STOREY, near[1] + b.depth]);
         for (let zz = near[1] + 1.2; zz < near[1] + b.depth; zz += 1.8) line([near[0], base, zz], [near[0], top - 0.2, zz]);
         ctx.stroke();
-        poly([[near[0], top, near[1] - 0.6], [near[0], top + 2.2, near[1] + b.depth / 2], [near[0], top, near[1] + b.depth + 0.6]], WOOD_SIDE);   // its gable
+        const ridge = top + 0.36 * b.depth * 0.5, zf = near[1] - 0.8, zr = near[1] + b.depth / 2, zb = near[1] + b.depth + 0.8, x = near[0];
+        poly([[x, top, zf], [x, ridge, zr], [x, top, zb]], WOOD_SIDE);                                         // its gable end
+        // the roof's edges along the gable (its two slopes, seen end-on), so it reads as a roof, not a bare wedge
+        poly([[x, top - 0.05, zf], [x, ridge - 0.05, zr], [x, ridge + 0.32, zr], [x, top + 0.27, zf - 0.15]], TEA_ROOF);
+        poly([[x, ridge - 0.05, zr], [x, top - 0.05, zb], [x, top + 0.27, zb + 0.15], [x, ridge + 0.32, zr]], TEA_ROOF);
+        ctx.strokeStyle = TEA_EDGE; ctx.lineWidth = 1.5; ctx.beginPath(); line([x, top - 0.05, zf], [x, ridge - 0.05, zr]); line([x, ridge - 0.05, zr], [x, top - 0.05, zb]); ctx.stroke();
       }
     }
     // each block's front: storeys of paper windows with balconies, a roof between storeys, the top roof
     for (const b of BLOCKS) {
-      const p = UP_LINE[b.seg], q = UP_LINE[b.seg + 1], out = [0, -1];
+      const p = UP_LINE[b.seg], q = UP_LINE[b.seg + 1], out = [0, -1], topY = FLOOR1 + b.storeys * STOREY;
+      // a solid backing at the set-back line, the full height: wherever a panel doesn't quite meet the next, you see building, not sky
+      poly(wallQuad([p[0], p[1] + 0.9], [q[0], q[1] + 0.9], BEAM_H - 0.1, topY + 0.3), WOOD_DARK);
+      // the balcony floor's underside, from the rail back to the set-back wall
+      poly([[p[0], FLOOR1, p[1] - 0.3], [q[0], FLOOR1, q[1] - 0.3], [q[0], FLOOR1, q[1] + 0.9], [p[0], FLOOR1, p[1] + 0.9]], SOFFIT);
       for (let k = 0; k < b.storeys; k++) {
         // (the lowest storey stands back behind its balcony; the people on the balcony are drawn in drawBalconies)
         const y0 = FLOOR1 + k * STOREY, y1 = y0 + STOREY - 0.3, set = k === 0 ? 0.9 : 0, fp = [p[0], p[1] + set], fq = [q[0], q[1] + set];
-        poly(wallQuad(fp, fq, y0, y1 + 0.3), WOOD);
+        poly(wallQuad(fp, fq, k === 0 ? BEAM_H - 0.1 : y0, y1 + 0.3), WOOD);
+        // over the set-back storey: the ceiling under the storey (or roof) above, which juts out to the front line
+        if (set) poly([[p[0], y1 + 0.3, p[1]], [q[0], y1 + 0.3, q[1]], [q[0], y1 + 0.3, q[1] + set], [p[0], y1 + 0.3, p[1] + set]], SOFFIT);
         pieces([fp, fq], 1.3, (a, c) => {
           const wm = warmAt((a[0] + c[0]) / 2, a[1] - 1.5) * (k === 0 ? 0.6 : 0.3);
           poly(wallQuad([a[0] + 0.08, a[1] - 0.01], [c[0] - 0.08, c[1] - 0.01], y0 + 0.5, y1 - 0.1), lit(SHOJI, wm));
@@ -223,7 +234,11 @@ export function createLampArt(canvas) {
       const wm = warmAt(mx, mz);
       if (door) {
         poly(wallQuad(p, q, 0, BEAM_H + 0.5), lit(['#0f0e0c', '#b07a46'], wm * 0.75));
-        poly(wallQuad([p[0], p[1] - 0.02], [q[0], q[1] - 0.02], 1.75, 2.75), lit(NOREN, wm * 0.9));
+        // the noren: a panel per piece, a slit between them, each with a pale crest
+        const ia = [p[0] + (q[0] - p[0]) * 0.04, p[1] + (q[1] - p[1]) * 0.04], ib = [q[0] - (q[0] - p[0]) * 0.04, q[1] - (q[1] - p[1]) * 0.04];
+        poly(wallQuad([ia[0], ia[1] - 0.02], [ib[0], ib[1] - 0.02], 1.75, 2.75), lit(NOREN, wm * 0.9));
+        const c = proj([[(p[0] + q[0]) / 2, 2.35, (p[1] + q[1]) / 2 - 0.03]]);
+        if (c) { ctx.fillStyle = mixHex('#6d6a5c', '#efe4c6', wm * 0.8); ctx.beginPath(); ctx.arc(c[0][0], c[0][1], 0.16 * c[0][2], 0, Math.PI * 2); ctx.fill(); }
         return;
       }
       poly(wallQuad(p, q, 0, BEAM_H + 0.5), lit(LATTICE, wm * 0.85));
