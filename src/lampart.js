@@ -1,50 +1,36 @@
-// THE LAMPLIGHTER's painting: a Meiji street at night in Kiyochika's colours (research 12): a dim grey-olive sky that stays a
-// little bright above the roofs, a big pine and a far pagoda in silhouette, a row of two-storey wooden house fronts seen flat-on
-// (lattice windows, noren curtains, red eave lanterns), and the open street in front. Every lamp he lights pours warm light over
-// the street and the fronts around it: their windows glow, the shops behind the noren warm up, the red lanterns come alive.
+// THE LAMPLIGHTER's painting (v1.4.2): close and flat-on, like Moronobu's teahouse (research 16), in Kiyochika's night colours
+// (research 12). A strip of dim grey-olive sky (a little brighter low down; it never changes) with a five-storey pagoda rising
+// behind the roofs, as at Asakusa; three two-storey house fronts; their ground floors an inset ARCADE: posts along its front,
+// red paper lanterns hanging from its eaves, shops with noren set back in its shadow. He walks the street just outside.
+// Each lantern he lights glows red-orange and warms the arcade, the shops and the windows around it.
 // Drawn live in code; this file only draws.
 import { VH, clamp } from './ocean.js';
-import { STREET_BACK, streetScale, lampX, lightButton, LAMP_PAUSE_ROWS, DONE_CHOICES, DONE_WAIT } from './lamplighter.js';
+import { HOUSES, EAVE_Y, LANTERN_Y, ARCADE_Y, SILL_Y, WALK_Y, figScaleAt, lanternX, lightButton, LAMP_PAUSE_ROWS, DONE_CHOICES, DONE_WAIT } from './lamplighter.js';
 import { createUI, mixHex, INK, MUTED } from './ui.js';
 import { BUILD } from './version.js';
 import { pixelRatio } from './quality.js';
 
 // ---- the palette (after Kiyochika's "Night Stalls at Asakusa") ----
 const SKY_TOP = '#1f2225', SKY_LOW = '#5a5b52';           // (Tom: the sky still a bit bright low down; it never changes)
-const FAR = '#272c28', FAR2 = '#1e2320';                  // the pine, the pagoda and the trees behind the roofs
+const FAR = '#272c28', PAGODA = '#191c1c';
 const ROOF = '#23272c', ROOF_LINE = '#15181b';
-const WOOD = '#25211d', WOOD_DARK = '#171512';
-const SHOJI = ['#2e2f2b', '#f3cf8a'];                     // a paper window: dark, and lit from the lamps
-const SHOP = ['#1b1916', '#d9a560'];                      // the shop behind the noren
+const WOOD = '#25211d', WOOD_DARK = '#171512', POST = '#1b1815';
+const SHOJI = ['#2e2f2b', '#f0c98a'];                     // a paper window: dark, and lit from below by the lanterns
+const SHOP = ['#141210', '#d39a5a'];                      // the shop behind the noren, deep in the arcade
 const NOREN = [['#1c2438', '#4a6696'], ['#3f1f1a', '#c4482f'], ['#3b3222', '#b99a52']];   // indigo, red, ochre: [dark, lit]
-const LANTERN = ['#3a1d1a', '#ea4b30'];
-const GROUND = ['#363530', '#262521'];                    // the street, at the back and at the front
+const ARCADE = ['#1a1916', '#5a4430'];                    // the arcade's floor and shadows
+const GROUND = ['#34332e', '#24231f'];                    // the street, near the arcade and at the front
 const SIL = '#17181b';                                    // people in the dark: silhouettes, as in Kiyochika
 const ROBES = ['#3b4458', '#5a4a3a', '#3a4a3f', '#55404a', '#4a4a4a'];
 const SKIN = '#d9b38c';
 const COAT = '#2f4373';                                   // the lamplighter's happi coat: indigo, with a pale collar
-const FIG = 1.7;                                          // how big the people are drawn
-const LAMP_H = 140;                                       // a lamp post's height (at scale 1)
-const WARM_R = 175;                                       // how far a lamp's light reaches across the house fronts
-
-function mulberry32(a) {
-  return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-}
-/** The row of house fronts across the picture: the same every time for a given width. */
-function buildHouses(W) {
-  const r = mulberry32(1878), out = [];
-  for (let x = -40; x < W + 40;) {
-    const w = 150 + r() * 120;
-    out.push({ x0: x, w, ridge: 150 + r() * 34, noren: Math.floor(r() * 3), lanterns: r() < 0.6 ? 3 + Math.floor(r() * 4) : 0,
-      sign: r() < 0.45, lattice: r() < 0.4, rail: r() < 0.6, seed: r() * 100 });
-    x += w;
-  }
-  return out;
-}
+const FIG = 3.0;                                          // how big the people are drawn (close camera)
+const WARM_R = 105;                                       // how far a lantern's light reaches across the fronts
+const LR = [12, 16];                                      // a lantern's half-width and half-height
 
 export function createLampArt(canvas) {
   const ui = createUI(canvas), ctx = ui.ctx;
-  let W = 1300, scale = 1, lastT = 0, btnA = 0, houses = buildHouses(W), housesW = W;
+  let W = 1300, scale = 1, lastT = 0, btnA = 0;
 
   function resize(w) {
     const cssH = canvas.clientHeight || window.innerHeight, cssW = canvas.clientWidth || window.innerWidth;
@@ -55,264 +41,227 @@ export function createLampArt(canvas) {
   }
 
   // ---------- light ----------
-  let lamps = [];                          // this frame's lamps: { x, y, sc, glow, hx, hy }
-  /** How warmly lit the house fronts are at x (0..1): the nearest lit lamps, the ones by the fronts the most. */
-  const warmFront = (x) => {
+  let lights = [];                         // this frame's lanterns: { x, glow }
+  /** How warmly lit the fronts are at x (0..1), from the nearest lit lanterns. */
+  const warmAt = (x) => {
     let w = 0;
-    for (const l of lamps) if (l.glow > 0) w = Math.max(w, l.glow * (l.y < 450 ? 1 : 0.7) * Math.exp(-(((x - l.x) / WARM_R) ** 2)));
-    return w;
-  };
-  /** How well lit someone standing at x, y is. */
-  const warmAt = (x, y) => {
-    let w = 0;
-    for (const l of lamps) if (l.glow > 0) w = Math.max(w, l.glow * Math.exp(-(((x - l.x) / 150) ** 2) - (((y - l.y) / 70) ** 2)));
+    for (const l of lights) if (l.glow > 0) w = Math.max(w, l.glow * Math.exp(-(((x - l.x) / WARM_R) ** 2)));
     return w;
   };
   const lit = (pair, w) => mixHex(pair[0], pair[1], w);
 
-  // ---------- sky and far things (they never change) ----------
+  // ---------- sky and the pagoda (they never change) ----------
   function drawSky() {
-    const g = ctx.createLinearGradient(0, 0, 0, 260);
-    g.addColorStop(0, SKY_TOP); g.addColorStop(0.55, '#3d3f3a'); g.addColorStop(1, SKY_LOW);
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, 300);
-    // faint streaks of cloud, as brushed in the print
-    ctx.strokeStyle = '#6a6b62'; ctx.lineWidth = 1; ctx.globalAlpha = 0.12;
-    for (let i = 0; i < 14; i++) {
-      const y = 40 + ((i * 53) % 130), x = ((i * 337) % (W + 200)) - 100, len = 120 + ((i * 71) % 200);
-      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + len, y - 3); ctx.stroke();
+    const g = ctx.createLinearGradient(0, 0, 0, 150);
+    g.addColorStop(0, SKY_TOP); g.addColorStop(0.5, '#3a3c37'); g.addColorStop(1, SKY_LOW);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, 160);
+    ctx.strokeStyle = '#6a6b62'; ctx.lineWidth = 1; ctx.globalAlpha = 0.1;
+    for (let i = 0; i < 8; i++) {
+      const y = 18 + ((i * 29) % 70), x = ((i * 337) % (W + 200)) - 100, len = 120 + ((i * 71) % 200);
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + len, y - 2); ctx.stroke();
     }
     ctx.globalAlpha = 1;
   }
-  function drawFar() {
-    // trees behind the roofs: a soft bumpy mass
-    ctx.fillStyle = FAR;
-    ctx.beginPath(); ctx.moveTo(0, 260);
-    for (let x = 0; x <= W + 16; x += 16) ctx.lineTo(x, 182 + 12 * Math.sin(x * 0.021) + 7 * Math.sin(x * 0.067 + 1) + 4 * Math.sin(x * 0.17));
-    ctx.lineTo(W, 260); ctx.closePath(); ctx.fill();
-    // a far pagoda (right) and a tall pine (left of centre), as in Kiyochika's Asakusa
-    const px = W * 0.84, base = 200;
-    ctx.fillStyle = FAR2;
+  function drawPagoda() {
+    // a five-storey pagoda as at Asakusa (Kiyochika, research 12): broad tiers with upswept eaves, a tall spire with rings
+    const px = W * 0.3, base = 150;
+    ctx.fillStyle = PAGODA;
     for (let i = 0; i < 5; i++) {
-      const y = base - i * 22, w = 46 - i * 6;
-      ctx.beginPath(); ctx.moveTo(px - w, y); ctx.quadraticCurveTo(px, y - 12, px + w, y); ctx.lineTo(px + w * 0.55, y - 6); ctx.lineTo(px - w * 0.55, y - 6); ctx.closePath(); ctx.fill();
-      ctx.fillRect(px - w * 0.35, y - 20, w * 0.7, 15);
+      const y = base - i * 27, w = 60 - i * 6.5, bw = w * 0.5;
+      ctx.fillRect(px - bw / 2, y - 14, bw, 14);                                                  // the storey's body
+      ctx.beginPath(); ctx.moveTo(px - w - 6, y - 19); ctx.quadraticCurveTo(px - w * 0.5, y - 13, px - bw * 0.5, y - 25);    // its roof, the
+      ctx.lineTo(px + bw * 0.5, y - 25); ctx.quadraticCurveTo(px + w * 0.5, y - 13, px + w + 6, y - 19);                 // corners swept up
+      ctx.lineTo(px + w - 4, y - 14); ctx.lineTo(px - w + 4, y - 14); ctx.closePath(); ctx.fill();
     }
-    ctx.fillRect(px - 1.5, base - 140, 3, 34);                         // the spire
-    const tx = W * 0.3;
-    ctx.fillStyle = FAR2; ctx.fillRect(tx - 3, 70, 6, 150);
-    for (const [dy, w, dx] of [[78, 34, -6], [100, 52, 10], [124, 66, -8], [148, 78, 6], [172, 70, -4]]) {
-      ctx.beginPath(); ctx.ellipse(tx + dx, dy, w, 9, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(tx + dx + w * 0.4, dy - 4, w * 0.45, 7, 0, 0, Math.PI * 2); ctx.fill();
-    }
+    const top = base - 5 * 27 - 22;
+    ctx.fillRect(px - 2, top - 34, 4, 40);                                                        // the spire
+    for (let k = 0; k < 6; k++) ctx.fillRect(px - 6 + k * 0.4, top - 30 + k * 5, 12 - k * 0.8, 2);   // its rings
+    // trees behind the roofs, as in the print
+    ctx.fillStyle = FAR;
+    ctx.beginPath(); ctx.moveTo(0, 160);
+    for (let x = 0; x <= W + 16; x += 16) ctx.lineTo(x, 132 + 9 * Math.sin(x * 0.019 + 2) + 6 * Math.sin(x * 0.061) + 3 * Math.sin(x * 0.17));
+    ctx.lineTo(W, 160); ctx.closePath(); ctx.fill();
   }
 
   // ---------- the house fronts ----------
   function drawHouses() {
-    if (housesW !== W) { houses = buildHouses(W); housesW = W; }
     const tiles = [];
-    for (const h of houses) {
-      const { x0, w, ridge } = h, x1 = x0 + w, eaveU = ridge + 34;
-      // the upper roof, tiles running down it
+    HOUSES.forEach((h, hi) => {
+      const x0 = h.u0 * W, x1 = h.u1 * W, w = x1 - x0, ridge = [126, 118, 130][hi], eaveU = ridge + 30;
+      // the upper roof
       ctx.fillStyle = ROOF;
-      ctx.beginPath(); ctx.moveTo(x0 - 4, ridge); ctx.lineTo(x1 + 4, ridge); ctx.lineTo(x1 + 12, eaveU); ctx.lineTo(x0 - 12, eaveU); ctx.closePath(); ctx.fill();
-      for (let x = x0; x < x1; x += 7) tiles.push([x, ridge + 2, x + (x - (x0 + x1) / 2) * 0.04, eaveU - 1]);
-      ctx.fillStyle = WOOD_DARK; ctx.fillRect(x0 - 12, eaveU - 3, w + 24, 4);
-      // the upper storey: paper windows (or a fine lattice), lit from the lamps
-      ctx.fillStyle = WOOD; ctx.fillRect(x0, eaveU, w, 268 - eaveU);
-      const n = Math.max(3, Math.round(w / 34)), pw = (w - 16) / n, top = eaveU + 7, bot = 252;
+      ctx.beginPath(); ctx.moveTo(x0 + 2, ridge); ctx.lineTo(x1 - 2, ridge); ctx.lineTo(x1 + 8, eaveU); ctx.lineTo(x0 - 8, eaveU); ctx.closePath(); ctx.fill();
+      for (let x = x0 + 4; x < x1; x += 9) tiles.push([x, ridge + 3, x + (x - (x0 + x1) / 2) * 0.05, eaveU - 2]);
+      ctx.fillStyle = WOOD_DARK; ctx.fillRect(x0 - 8, eaveU - 4, w + 16, 5); ctx.fillRect(x0, ridge - 4, w, 5);
+      // the upper storey: paper windows (a fine lattice on the middle house), lit softly from the lanterns below
+      ctx.fillStyle = WOOD; ctx.fillRect(x0, eaveU, w, 234 - eaveU);
+      const n = Math.max(4, Math.round(w / 46)), pw = (w - 24) / n, top = eaveU + 8, bot = 214;
       for (let i = 0; i < n; i++) {
-        const px = x0 + 8 + i * pw, wm = warmFront(px + pw / 2);
-        ctx.fillStyle = lit(SHOJI, wm * 0.95); ctx.fillRect(px + 1.5, top, pw - 3, bot - top);
-        ctx.strokeStyle = WOOD_DARK; ctx.lineWidth = 1;
-        ctx.beginPath();
-        if (h.lattice) for (let x = px + 5; x < px + pw - 2; x += 4) { ctx.moveTo(x, top); ctx.lineTo(x, bot); }
-        else { for (let y = top + 9; y < bot; y += 9) { ctx.moveTo(px + 1.5, y); ctx.lineTo(px + pw - 1.5, y); } ctx.moveTo(px + pw / 2, top); ctx.lineTo(px + pw / 2, bot); }
+        const px = x0 + 12 + i * pw, wm = warmAt(px + pw / 2) * 0.7;
+        ctx.fillStyle = lit(SHOJI, wm); ctx.fillRect(px + 2, top, pw - 4, bot - top);
+        ctx.strokeStyle = WOOD_DARK; ctx.lineWidth = 1.2; ctx.beginPath();
+        if (hi === 1) for (let x = px + 6; x < px + pw - 3; x += 5) { ctx.moveTo(x, top); ctx.lineTo(x, bot); }
+        else { for (let y = top + 12; y < bot; y += 12) { ctx.moveTo(px + 2, y); ctx.lineTo(px + pw - 2, y); } ctx.moveTo(px + pw / 2, top); ctx.lineTo(px + pw / 2, bot); }
         ctx.stroke();
       }
-      if (h.rail) {
-        ctx.fillStyle = WOOD_DARK; ctx.fillRect(x0 + 4, 247, w - 8, 3); ctx.fillRect(x0 + 4, 258, w - 8, 3);
-        for (let x = x0 + 8; x < x1 - 4; x += 9) ctx.fillRect(x, 248, 2, 12);
-      }
-      // the lower pent roof over the shop
+      // the balcony rail
+      ctx.fillStyle = WOOD_DARK; ctx.fillRect(x0 + 4, 208, w - 8, 4); ctx.fillRect(x0 + 4, 224, w - 8, 4);
+      for (let x = x0 + 10; x < x1 - 6; x += 12) ctx.fillRect(x, 210, 3, 16);
+      // the arcade's roof, its fascia beam along the front (the lanterns hang from it)
       ctx.fillStyle = ROOF;
-      ctx.beginPath(); ctx.moveTo(x0 - 4, 266); ctx.lineTo(x1 + 4, 266); ctx.lineTo(x1 + 10, 288); ctx.lineTo(x0 - 10, 288); ctx.closePath(); ctx.fill();
-      for (let x = x0; x < x1; x += 7) tiles.push([x, 268, x + (x - (x0 + x1) / 2) * 0.03, 287]);
-      ctx.fillStyle = WOOD_DARK; ctx.fillRect(x0 - 10, 286, w + 20, 3);
-      // the shop: warm inside behind the noren, a slatted lattice either side
-      const sw = w * 0.62, sx = x0 + (w - sw) / 2, shopW = warmFront(x0 + w / 2);
-      ctx.fillStyle = WOOD; ctx.fillRect(x0, 289, w, STREET_BACK - 289);
-      ctx.fillStyle = lit(SHOP, shopW * 0.85); ctx.fillRect(sx, 289, sw, STREET_BACK - 289);
-      ctx.strokeStyle = WOOD_DARK; ctx.lineWidth = 1.6;
-      ctx.beginPath();
-      for (let x = x0 + 5; x < sx - 2; x += 5) { ctx.moveTo(x, 292); ctx.lineTo(x, STREET_BACK); }
-      for (let x = sx + sw + 4; x < x1 - 2; x += 5) { ctx.moveTo(x, 292); ctx.lineTo(x, STREET_BACK); }
-      ctx.stroke();
-      const nc = NOREN[h.noren], panels = 3, gap = 3, nw = (sw - gap * (panels - 1)) / panels;
-      ctx.fillStyle = lit(nc, shopW * 0.9);
-      for (let i = 0; i < panels; i++) ctx.fillRect(sx + i * (nw + gap), 289, nw, 36);
-      // a hanging signboard by the door
-      if (h.sign) {
-        const bx = x0 + 10, sg = warmFront(bx);
-        ctx.fillStyle = mixHex('#55524a', '#e8dcb8', sg * 0.9); ctx.fillRect(bx, 296, 14, 46);
-        ctx.fillStyle = WOOD_DARK; ctx.globalAlpha = 0.8;
-        for (let k = 0; k < 4; k++) ctx.fillRect(bx + 4 + ((k * 3) % 4), 301 + k * 10, 6, 5);
-        ctx.globalAlpha = 1;
+      ctx.beginPath(); ctx.moveTo(x0, 234); ctx.lineTo(x1, 234); ctx.lineTo(x1 + 6, EAVE_Y - 4); ctx.lineTo(x0 - 6, EAVE_Y - 4); ctx.closePath(); ctx.fill();
+      for (let x = x0 + 4; x < x1; x += 9) tiles.push([x, 236, x + (x - (x0 + x1) / 2) * 0.02, EAVE_Y - 5]);
+      // inside the arcade: deep shadow, the shops set back with their noren, warmed by the lanterns
+      const inTop = EAVE_Y + 4;
+      ctx.fillStyle = WOOD_DARK; ctx.fillRect(x0, inTop, w, SILL_Y - inTop);
+      const shops = 2, sw = (w - 30) / shops;
+      for (let k = 0; k < shops; k++) {
+        const sx = x0 + 15 + k * sw, cx = sx + sw / 2, wm = warmAt(cx);
+        ctx.fillStyle = lit(SHOP, wm * 0.8); ctx.fillRect(sx + 10, inTop + 18, sw - 20, ARCADE_Y - 8 - inTop - 18);
+        // lattice either side of the doorway
+        ctx.strokeStyle = POST; ctx.lineWidth = 2; ctx.beginPath();
+        for (let x = sx + 12; x < sx + sw * 0.22; x += 6) { ctx.moveTo(x, inTop + 18); ctx.lineTo(x, ARCADE_Y - 8); }
+        for (let x = sx + sw * 0.78; x < sx + sw - 10; x += 6) { ctx.moveTo(x, inTop + 18); ctx.lineTo(x, ARCADE_Y - 8); }
+        ctx.stroke();
+        // the noren across the doorway, in three panels
+        const nc = NOREN[(hi + k) % 3], nx = sx + sw * 0.24, nw = sw * 0.52, pnl = (nw - 6) / 3;
+        ctx.fillStyle = lit(nc, wm * 0.9);
+        for (let i = 0; i < 3; i++) ctx.fillRect(nx + i * (pnl + 3), inTop + 18, pnl, 58);
+        ctx.fillStyle = POST; ctx.fillRect(nx - 4, inTop + 15, nw + 8, 4);                       // the noren's rod
+        // a hanging signboard
+        if (k === 0) { const bx = sx + sw * 0.06, sg = warmAt(bx); ctx.fillStyle = mixHex('#4a4740', '#e8dcb8', sg * 0.9); ctx.fillRect(bx, inTop + 26, 16, 64);
+          ctx.fillStyle = WOOD_DARK; for (let j = 0; j < 5; j++) ctx.fillRect(bx + 4 + ((j * 3) % 5), inTop + 32 + j * 11, 7, 6); }
       }
-      // the posts between the houses (and their firewalls rising above the roof)
-      ctx.fillStyle = WOOD_DARK; ctx.fillRect(x0 - 3, ridge - 6, 6, STREET_BACK - ridge + 6); ctx.fillRect(x0 - 7, ridge - 10, 14, 6);
-    }
-    ctx.strokeStyle = ROOF_LINE; ctx.lineWidth = 1.2; ctx.beginPath();
+      // the arcade's floor, and the stone sill along its front
+      ctx.fillStyle = lit(ARCADE, warmAt(x0 + w / 2) * 0.5); ctx.fillRect(x0, ARCADE_Y - 8, w, SILL_Y - ARCADE_Y + 8);
+      ctx.fillStyle = '#3d3a33'; ctx.fillRect(x0, SILL_Y - 6, w, 8);
+    });
+    ctx.strokeStyle = ROOF_LINE; ctx.lineWidth = 1.3; ctx.beginPath();
     for (const [a, b, c, d] of tiles) { ctx.moveTo(a, b); ctx.lineTo(c, d); }
     ctx.stroke();
-    // red paper lanterns hanging along the shop eaves (as at the Shintomi theatre): dull in the dark, alive near a lit lamp
-    for (const h of houses) {
-      if (!h.lanterns) continue;
-      const span = h.w * 0.8, x0 = h.x0 + h.w * 0.1, step = span / (h.lanterns - 1);
-      for (let i = 0; i < h.lanterns; i++) {
-        const x = x0 + i * step, wm = warmFront(x);
-        ctx.strokeStyle = WOOD_DARK; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, 288); ctx.lineTo(x, 293); ctx.stroke();
-        ctx.fillStyle = lit(LANTERN, wm); ctx.beginPath(); ctx.ellipse(x, 301, 6.5, 8.5, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = WOOD_DARK; ctx.fillRect(x - 4, 292, 8, 2); ctx.fillRect(x - 4, 309, 8, 2);
-      }
+    // shadow under the arcade's roof
+    const sh = ctx.createLinearGradient(0, EAVE_Y, 0, EAVE_Y + 40);
+    sh.addColorStop(0, 'rgba(0,0,0,0.55)'); sh.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = sh; ctx.fillRect(0, EAVE_Y, W, 40);
+  }
+  /** The arcade's posts and fascia beam: drawn in front of the people walking inside it. */
+  function drawPosts() {
+    ctx.fillStyle = POST;
+    for (const h of HOUSES) {
+      const x0 = h.u0 * W, w = (h.u1 - h.u0) * W;
+      for (const f of [0, 0.25, 0.75]) { const x = x0 + w * f; ctx.fillRect(x - 5, EAVE_Y - 4, 10, SILL_Y - EAVE_Y + 2); ctx.fillRect(x - 8, SILL_Y - 6, 16, 6); }
     }
-    // the foot of the fronts: a dark sill
-    ctx.fillStyle = WOOD_DARK; ctx.fillRect(0, STREET_BACK - 4, W, 5);
+    ctx.fillRect(W - 5, EAVE_Y - 4, 10, SILL_Y - EAVE_Y + 2);
+    ctx.fillStyle = WOOD_DARK; ctx.fillRect(0, EAVE_Y - 8, W, 10);                                 // the fascia beam
   }
 
   // ---------- the street ----------
   function drawStreet() {
-    const g = ctx.createLinearGradient(0, STREET_BACK, 0, VH);
+    const g = ctx.createLinearGradient(0, SILL_Y, 0, VH);
     g.addColorStop(0, GROUND[0]); g.addColorStop(1, GROUND[1]);
-    ctx.fillStyle = g; ctx.fillRect(0, STREET_BACK, W, VH - STREET_BACK);
-    // faint ruts and footprints in the packed earth
-    ctx.strokeStyle = '#2c2b26'; ctx.lineWidth = 1; ctx.globalAlpha = 0.35;
-    ctx.beginPath();
-    for (let i = 0; i < 26; i++) {
-      const y = STREET_BACK + 14 + ((i * 41) % (VH - STREET_BACK - 40)), x = ((i * 263) % (W + 100)) - 50, len = 40 + ((i * 37) % 120);
+    ctx.fillStyle = g; ctx.fillRect(0, SILL_Y, W, VH - SILL_Y);
+    ctx.strokeStyle = '#1e1d1a'; ctx.lineWidth = 1; ctx.globalAlpha = 0.4; ctx.beginPath();
+    for (let i = 0; i < 18; i++) {
+      const y = SILL_Y + 12 + ((i * 37) % (VH - SILL_Y - 20)), x = ((i * 263) % (W + 100)) - 50, len = 50 + ((i * 37) % 140);
       ctx.moveTo(x, y); ctx.lineTo(x + len, y + 1);
     }
     ctx.stroke(); ctx.globalAlpha = 1;
-    // the gutter along the near edge, with its stones
-    ctx.fillStyle = '#25241f'; ctx.fillRect(0, 584, W, 16);
-    ctx.fillStyle = '#3a3832';
-    for (let x = 4; x < W; x += 31) ctx.fillRect(x, 582, 26, 4);
-  }
-  /** Warm light: on the fronts, pooled on the street round each lit lamp's foot (added on top, like light). */
-  function drawWash() {
-    ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    for (const l of lamps) {
-      if (l.glow <= 0.01) continue;
-      const a = l.glow;
-      // over the house fronts behind it
-      let g = ctx.createRadialGradient(l.hx, l.hy, 4, l.hx, l.hy, 260 * l.sc);
-      g.addColorStop(0, `rgba(255,190,105,${0.3 * a})`); g.addColorStop(0.45, `rgba(200,130,60,${0.12 * a})`); g.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = g; ctx.fillRect(l.hx - 270 * l.sc, l.hy - 270 * l.sc, 540 * l.sc, 540 * l.sc);
-      // a pool on the street
-      ctx.save(); ctx.translate(l.x, l.y); ctx.scale(1, 0.3);
-      g = ctx.createRadialGradient(0, 0, 2, 0, 0, 200 * l.sc);
-      g.addColorStop(0, `rgba(255,200,120,${0.3 * a})`); g.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 200 * l.sc, 0, Math.PI * 2); ctx.fill();
-      ctx.restore();
-    }
-    ctx.restore();
   }
 
-  // ---------- lamps ----------
-  function drawLamp(l) {
-    const { x, y, sc, glow } = l, top = y - LAMP_H * sc;
-    ctx.fillStyle = 'rgba(10,10,10,0.3)'; ctx.beginPath(); ctx.ellipse(x, y, 12 * sc, 3.5 * sc, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#1b1a19';
-    ctx.fillRect(x - 6 * sc, y - 9 * sc, 12 * sc, 9 * sc);                // the base
-    ctx.fillRect(x - 2.6 * sc, top, 5.2 * sc, LAMP_H * sc - 8 * sc);      // the post
-    ctx.fillRect(x - 13 * sc, top + 14 * sc, 26 * sc, 2.6 * sc);          // the ladder bar
-    // the lantern: a glass box, narrower at the foot, with a cap and a little finial
-    const hw = 10 * sc, hb = 6.5 * sc, hh = 20 * sc, hy = top - hh;
-    ctx.fillStyle = mixHex('#3d403c', '#fff3c8', glow);
-    ctx.beginPath(); ctx.moveTo(x - hw, hy); ctx.lineTo(x + hw, hy); ctx.lineTo(x + hb, top); ctx.lineTo(x - hb, top); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = '#141414'; ctx.lineWidth = 1.4 * sc; ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(x, hy); ctx.lineTo(x, top); ctx.stroke();
-    ctx.fillStyle = '#141414';
-    ctx.beginPath(); ctx.moveTo(x - hw - 4 * sc, hy + 1); ctx.lineTo(x, hy - 9 * sc); ctx.lineTo(x + hw + 4 * sc, hy + 1); ctx.closePath(); ctx.fill();
-    ctx.beginPath(); ctx.arc(x, hy - 10 * sc, 2 * sc, 0, Math.PI * 2); ctx.fill();
-  }
-  function drawHalos(sim, time) {
-    ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    for (const l of lamps) {
-      if (l.glow <= 0.01) continue;
-      const flick = 1 + 0.03 * Math.sin(time * 9 + l.x) + 0.02 * Math.sin(time * 23 + l.y);
-      const r = 62 * l.sc * flick, g = ctx.createRadialGradient(l.hx, l.hy, 2, l.hx, l.hy, r);
-      g.addColorStop(0, `rgba(255,236,180,${0.75 * l.glow})`); g.addColorStop(0.3, `rgba(255,190,110,${0.3 * l.glow})`); g.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(l.hx, l.hy, r, 0, Math.PI * 2); ctx.fill();
+  // ---------- lanterns ----------
+  function drawLanterns(sim, time) {
+    for (const l of sim.lanterns) {
+      const x = lanternX(l, W), y = LANTERN_Y + Math.sin(time * 0.9 + l.u * 40) * 0.8, g = l.glow;
+      ctx.strokeStyle = POST; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(x, EAVE_Y + 2); ctx.lineTo(x, y - LR[1]); ctx.stroke();
+      if (g > 0.01) {
+        const grd = ctx.createRadialGradient(x, y - 2, 1, x, y, LR[1]);
+        grd.addColorStop(0, mixHex('#4a2420', '#ffe0a8', g)); grd.addColorStop(0.55, mixHex('#3a1d1a', '#f06a3a', g)); grd.addColorStop(1, mixHex('#3a1d1a', '#c8331f', g));
+        ctx.fillStyle = grd;
+      } else ctx.fillStyle = '#3a1d1a';
+      ctx.beginPath(); ctx.ellipse(x, y, LR[0], LR[1], 0, 0, Math.PI * 2); ctx.fill();
+      // the paper's ribs, and the black rims top and bottom
+      ctx.strokeStyle = 'rgba(20,10,8,0.35)'; ctx.lineWidth = 0.8; ctx.beginPath();
+      for (let k = -2; k <= 2; k++) { const yy = y + k * LR[1] * 0.33, ww = LR[0] * Math.sqrt(1 - (k * 0.33) ** 2); ctx.moveTo(x - ww, yy); ctx.lineTo(x + ww, yy); }
+      ctx.stroke();
+      ctx.fillStyle = POST; ctx.fillRect(x - 7, y - LR[1] - 2, 14, 4); ctx.fillRect(x - 7, y + LR[1] - 2, 14, 4);
     }
-    // the passers-by's paper lanterns
+  }
+  /** Warm light added on top: halos round the lit lanterns, a wash over the arcade, a pool on the street. */
+  function drawGlow(sim) {
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    for (const l of sim.lanterns) {
+      if (l.glow <= 0.01) continue;
+      const x = lanternX(l, W), a = l.glow;
+      let g = ctx.createRadialGradient(x, 380, 6, x, 380, 170);
+      g.addColorStop(0, `rgba(255,150,80,${0.16 * a})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.fillRect(x - 170, 210, 340, 340);
+      ctx.save(); ctx.translate(x, WALK_Y - 10); ctx.scale(1, 0.28);
+      g = ctx.createRadialGradient(0, 0, 2, 0, 0, 140);
+      g.addColorStop(0, `rgba(255,160,90,${0.22 * a})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 140, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      g = ctx.createRadialGradient(x, LANTERN_Y, 4, x, LANTERN_Y, 58);
+      g.addColorStop(0, `rgba(255,190,120,${0.5 * a})`); g.addColorStop(0.4, `rgba(255,110,60,${0.2 * a})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, LANTERN_Y, 58, 0, Math.PI * 2); ctx.fill();
+    }
     for (const w of sim.walkers) {
       if (!w.lanternAt) continue;
-      const [x, y, s] = w.lanternAt, g = ctx.createRadialGradient(x, y, 1, x, y, 30 * s);
+      const [x, y, s] = w.lanternAt, g = ctx.createRadialGradient(x, y, 1, x, y, 34 * s);
       g.addColorStop(0, 'rgba(255,120,70,0.45)'); g.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 30 * s, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 34 * s, 0, Math.PI * 2); ctx.fill();
     }
-    // the little flame on the lamplighter's pole
     if (sim.flameAt) {
-      const [x, y, s] = sim.flameAt, g = ctx.createRadialGradient(x, y, 1, x, y, 26 * s);
-      g.addColorStop(0, 'rgba(255,220,150,0.7)'); g.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 26 * s, 0, Math.PI * 2); ctx.fill();
+      const [x, y, s] = sim.flameAt, g = ctx.createRadialGradient(x, y, 1, x, y, 30 * s);
+      g.addColorStop(0, `rgba(255,220,150,${0.7 * s})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 30, 0, Math.PI * 2); ctx.fill();
     }
     ctx.restore();
   }
 
   // ---------- people ----------
-  /** A person (picture units at their feet). o: { face, step, bow, body (colour), head (colour), hat, band, scale } */
+  /** A person, feet at x, y. o: { face, step, bow, still, body, head, legs, collar, sash, band, knot } */
   function drawBody(x, y, sz, o) {
     ctx.save(); ctx.translate(x, y); ctx.scale(sz, sz);
-    const f = o.face, stride = Math.sin(o.step * Math.PI * 2) * (o.still ? 0 : 5);
-    ctx.fillStyle = 'rgba(8,8,10,0.3)'; ctx.beginPath(); ctx.ellipse(0, 1, 11, 3, 0, 0, Math.PI * 2); ctx.fill();
+    const f = o.face, stride = Math.sin(o.step * Math.PI * 2) * (o.still ? 0 : 4.5);
+    ctx.fillStyle = 'rgba(8,8,10,0.3)'; ctx.beginPath(); ctx.ellipse(0, 1, 10, 2.6, 0, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = o.legs || SIL; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(-2, -10); ctx.lineTo(-2 + stride, 0); ctx.moveTo(2, -10); ctx.lineTo(2 - stride, 0); ctx.stroke();
-    ctx.translate(0, -9); ctx.rotate(f * (0.06 + o.bow * 0.55));
+    ctx.translate(0, -9); ctx.rotate(f * (0.05 + o.bow * 0.5));
     ctx.fillStyle = o.body; ctx.beginPath(); ctx.moveTo(-6.5, 1); ctx.lineTo(6.5, 1); ctx.lineTo(5.2, -23); ctx.lineTo(-5.2, -23); ctx.closePath(); ctx.fill();
-    if (o.collar) { ctx.strokeStyle = o.collar; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(-3.5, -23); ctx.lineTo(1, -10); ctx.moveTo(3.5, -23); ctx.lineTo(1, -10); ctx.stroke(); }
-    if (o.sash) { ctx.strokeStyle = o.sash; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-5.8, -9); ctx.lineTo(5.8, -9); ctx.stroke(); }
+    if (o.collar) { ctx.strokeStyle = o.collar; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(-3.5, -23); ctx.lineTo(1, -10); ctx.moveTo(3.5, -23); ctx.lineTo(1, -10); ctx.stroke(); }
+    if (o.sash) { ctx.strokeStyle = o.sash; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(-5.8, -9); ctx.lineTo(5.8, -9); ctx.stroke(); }
     ctx.fillStyle = o.head; ctx.beginPath(); ctx.arc(f * 1.4, -27, 3.9, 0, Math.PI * 2); ctx.fill();
-    if (o.band) { ctx.strokeStyle = o.band; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(f * 1.4 - 4, -28.5); ctx.lineTo(f * 1.4 + 4, -28.5); ctx.stroke(); }
+    if (o.band) { ctx.strokeStyle = o.band; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(f * 1.4 - 4, -28.5); ctx.lineTo(f * 1.4 + 4, -28.5); ctx.stroke(); }
     if (o.knot) { ctx.fillStyle = o.knot; ctx.fillRect(f * 1.4 - 1.2 - f * 2, -33.5, 2.6, 3.4); }
-    if (o.hat) { ctx.fillStyle = o.hat; ctx.beginPath(); ctx.moveTo(-12, -26); ctx.quadraticCurveTo(0, -40, 12, -26); ctx.closePath(); ctx.fill(); }
     ctx.restore();
   }
   function drawWalker(w) {
-    const sc = streetScale(w.y), sz = sc * FIG, wm = clamp(warmAt(w.x, w.y) * 1.1, 0, 1);
-    const body = mixHex(SIL, ROBES[w.robe], wm * 0.9), head = mixHex('#1f1e1f', SKIN, wm * 0.8), still = w.bowT > 0 || w.wait > 0;
-    const bow = w.bowT > 0 ? Math.sin((w.bowT / 1.4) * Math.PI) : 0;
+    const sc = figScaleAt(w.y), sz = sc * FIG, inside = w.lane === 'arcade', wm = clamp(warmAt(w.x) * (inside ? 1 : 0.6), 0, 1);
+    const body = mixHex(SIL, ROBES[w.robe], wm * 0.85), head = mixHex('#1f1e1f', SKIN, wm * 0.8), bow = Math.sin(w.nod * Math.PI) * 0.35;
     w.lanternAt = null;
     if (w.kind === 'rickshaw') {
-      // the puller leans into the shafts; the two-wheeled cart behind him, a passenger under the hood
-      const d = w.dir, cx = w.x - d * 34 * sz / FIG, wr = 15 * sc;
-      ctx.strokeStyle = SIL; ctx.lineWidth = 2.2 * sc;
-      ctx.beginPath(); ctx.moveTo(w.x + d * 4 * sc, w.y - 24 * sc); ctx.lineTo(cx, w.y - 22 * sc); ctx.stroke();                 // the shafts
+      const d = w.dir, cx = w.x - d * 36 * sc, wr = 26 * sc;
+      ctx.strokeStyle = SIL; ctx.lineWidth = 3 * sc;
+      ctx.beginPath(); ctx.moveTo(w.x + d * 8 * sc, w.y - 46 * sc); ctx.lineTo(cx, w.y - 40 * sc); ctx.stroke();                 // the shafts
       ctx.fillStyle = mixHex(SIL, '#3a3330', wm);
-      ctx.beginPath(); ctx.moveTo(cx - 16 * sc, w.y - 20 * sc); ctx.lineTo(cx + 14 * sc, w.y - 20 * sc); ctx.lineTo(cx + 10 * sc * -d, w.y - 52 * sc);
-      ctx.quadraticCurveTo(cx - d * 26 * sc, w.y - 54 * sc, cx - d * 20 * sc, w.y - 22 * sc); ctx.closePath(); ctx.fill();          // the seat and hood
-      ctx.fillStyle = head; ctx.beginPath(); ctx.arc(cx - d * 2 * sc, w.y - 38 * sc, 3.6 * sc, 0, Math.PI * 2); ctx.fill();         // the passenger
-      ctx.strokeStyle = '#121214'; ctx.lineWidth = 2 * sc; ctx.beginPath(); ctx.arc(cx, w.y - wr, wr, 0, Math.PI * 2); ctx.stroke();
-      ctx.lineWidth = 0.8 * sc; ctx.beginPath();
-      const turn = (w.x / (wr * 1.0)) * d;
+      ctx.beginPath(); ctx.moveTo(cx - 26 * sc, w.y - 36 * sc); ctx.lineTo(cx + 22 * sc, w.y - 36 * sc); ctx.lineTo(cx - d * 14 * sc, w.y - 98 * sc);
+      ctx.quadraticCurveTo(cx - d * 44 * sc, w.y - 100 * sc, cx - d * 34 * sc, w.y - 38 * sc); ctx.closePath(); ctx.fill();          // the seat and hood
+      ctx.fillStyle = head; ctx.beginPath(); ctx.arc(cx - d * 6 * sc, w.y - 70 * sc, 6.5 * sc, 0, Math.PI * 2); ctx.fill();         // the passenger
+      ctx.strokeStyle = '#111113'; ctx.lineWidth = 3 * sc; ctx.beginPath(); ctx.arc(cx, w.y - wr, wr, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineWidth = 1.2 * sc; ctx.beginPath();
+      const turn = (w.x / wr) * d;
       for (let k = 0; k < 6; k++) { const a = turn + (k * Math.PI) / 6; ctx.moveTo(cx - Math.cos(a) * wr, w.y - wr - Math.sin(a) * wr); ctx.lineTo(cx + Math.cos(a) * wr, w.y - wr + Math.sin(a) * wr); }
       ctx.stroke();
-      // a red lantern hung on the cart
-      const lx = cx + d * 12 * sc, ly = w.y - 26 * sc;
-      ctx.fillStyle = '#e0553a'; ctx.beginPath(); ctx.ellipse(lx, ly, 4 * sc, 5.5 * sc, 0, 0, Math.PI * 2); ctx.fill();
-      w.lanternAt = [lx, ly, sc];
-      ctx.save(); ctx.translate(w.x, w.y); ctx.rotate(d * 0.25); ctx.translate(-w.x, -w.y);
-      drawBody(w.x, w.y, sz, { face: d, step: w.step, bow: 0, still, body, head, hat: mixHex(SIL, '#6d6650', wm) });
+      const lx = cx + d * 20 * sc, ly = w.y - 48 * sc;
+      ctx.fillStyle = '#e0553a'; ctx.beginPath(); ctx.ellipse(lx, ly, 6 * sc, 8 * sc, 0, 0, Math.PI * 2); ctx.fill();
+      w.lanternAt = [lx, ly, sc * 1.4];
+      ctx.save(); ctx.translate(w.x, w.y); ctx.rotate(d * 0.22); ctx.translate(-w.x, -w.y);
+      drawBody(w.x, w.y, sz, { face: d, step: w.step, bow: 0, body, head });
       ctx.restore();
       return;
     }
-    drawBody(w.x, w.y, sz, { face: w.dir, step: w.step, bow, still, body, head, knot: w.kind === 'plain' ? SIL : null });
-    if (w.kind === 'umbrella') {
-      // an open paper umbrella, pale against the dark (as in Kiyochika's Kudanzaka)
-      const ux = w.x + w.dir * 3 * sz, uy = w.y - 46 * sz;
-      ctx.strokeStyle = SIL; ctx.lineWidth = 1.2 * sz; ctx.beginPath(); ctx.moveTo(ux, uy); ctx.lineTo(ux, w.y - 22 * sz); ctx.stroke();
-      ctx.fillStyle = mixHex('#7d7663', '#d8c9a0', wm * 0.8); ctx.beginPath(); ctx.ellipse(ux, uy + 2 * sz, 19 * sz, 8 * sz, 0, Math.PI, 0); ctx.closePath(); ctx.fill();
-    }
+    const bodies = w.kind === 'pair' ? [-9 * sz / FIG * 1.6, 9 * sz / FIG * 1.6] : [0];
+    for (const bx of bodies) drawBody(w.x + bx, w.y, sz, { face: w.dir, step: w.step + bx * 0.01, bow, body, head, knot: SIL });
     if (w.kind === 'lantern') {
       // a red paper lantern carried low on a short stick, swinging a little
       const hx = w.x + w.dir * 7 * sz, hy = w.y - 22 * sz, lx = hx + w.dir * 5 * sz + w.swing * 1.5 * sz, ly = w.y - 12 * sz;
@@ -323,42 +272,42 @@ export function createLampArt(canvas) {
     }
   }
   function drawPlayer(sim, time) {
-    const p = sim.player, sc = streetScale(p.y), sz = sc * FIG, wm = clamp(warmAt(p.x, p.y), 0, 1);
+    const p = sim.player, sz = FIG, wm = clamp(warmAt(p.x), 0, 1), x = p.x, y = WALK_Y;
     ctx.save(); ctx.globalAlpha = p.fade;
-    drawBody(p.x, p.y, sz, { face: p.face, step: p.step, bow: p.bow, still: Math.hypot(p.vx, p.vy) < 3 && p.lightT <= 0,
+    drawBody(x, y, sz, { face: p.face, step: p.step, bow: Math.sin(p.nod * Math.PI) * 0.3, still: Math.abs(p.vx) < 3 && p.lightT <= 0,
       body: mixHex(COAT, '#4d66a8', wm * 0.6), legs: '#151518', head: mixHex('#a88a6a', SKIN, 0.4 + wm * 0.6), collar: '#d8c9a0', band: '#e8e0cc', sash: '#d8c9a0' });
-    // the long pole, with a small flame at its tip: carried slanting forward, raised to the lamp to light it
-    const hand = [p.x + p.face * 7 * sz, p.y - 24 * sz], len = 110 * sc;
-    const carry = p.face > 0 ? -0.72 : Math.PI + 0.72;                            // about 40 degrees up, ahead of him
+    // his arm, and the pole with its small flame: carried slanting up ahead of him; to light a lantern he lifts his arm and
+    // raises the pole until the flame is just under it
+    const shoulder = [x + p.face * 2 * sz, y - 29 * sz], hand = [x + p.face * 7 * sz, y - (20 + 16 * p.raise) * sz];
+    ctx.strokeStyle = mixHex(COAT, '#4d66a8', wm * 0.6); ctx.lineWidth = 2.6 * sz; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(shoulder[0], shoulder[1]); ctx.lineTo(hand[0], hand[1]); ctx.stroke();
+    const len = 92, carry = p.face > 0 ? -0.9 : Math.PI + 0.9;                                    // about 50 degrees up
     let ang = carry, L = len;
-    if (p.lamp >= 0 && p.raise > 0) {
-      const l = sim.lamps[p.lamp], tx = lampX(l, W), ty = l.y - LAMP_H * streetScale(l.y) + 2;
+    if (p.lantern >= 0 && p.raise > 0) {
+      const l = sim.lanterns[p.lantern], tx = lanternX(l, W), ty = LANTERN_Y + LR[1] + 6;
       const want = Math.atan2(ty - hand[1], tx - hand[0]), wantL = Math.hypot(tx - hand[0], ty - hand[1]);
       ang = carry + (want - carry) * p.raise; L = len + (wantL - len) * p.raise;
     }
-    const bob = Math.sin(p.step * Math.PI * 2) * 1.5 * sc;
-    const tip = [hand[0] + Math.cos(ang) * L, hand[1] + Math.sin(ang) * L + bob];
-    ctx.strokeStyle = '#2a241d'; ctx.lineWidth = 2.2 * sc; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(hand[0] - Math.cos(ang) * 14 * sc, hand[1] - Math.sin(ang) * 14 * sc); ctx.lineTo(tip[0], tip[1]); ctx.stroke();
+    const bob = Math.sin(p.step * Math.PI * 2) * 2;
+    const tip = [hand[0] + Math.cos(ang) * L, hand[1] + Math.sin(ang) * L + bob * (1 - p.raise)];
+    ctx.strokeStyle = '#2a241d'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(hand[0] - Math.cos(ang) * 22, hand[1] - Math.sin(ang) * 22); ctx.lineTo(tip[0], tip[1]); ctx.stroke();
     const fl = 1 + 0.15 * Math.sin(time * 17) + 0.1 * Math.sin(time * 31);
-    ctx.fillStyle = '#ffd890'; ctx.beginPath(); ctx.ellipse(tip[0], tip[1] - 3 * sc * fl, 2.4 * sc, 4.2 * sc * fl, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#fff6dc'; ctx.beginPath(); ctx.arc(tip[0], tip[1] - 2 * sc, 1.2 * sc, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ffd890'; ctx.beginPath(); ctx.ellipse(tip[0], tip[1] - 4 * fl, 3.4, 6 * fl, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff6dc'; ctx.beginPath(); ctx.arc(tip[0], tip[1] - 3, 1.7, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
-    sim.flameAt = [tip[0], tip[1] - 2 * sc, sc * p.fade];
+    sim.flameAt = [tip[0], tip[1] - 3, p.fade];
   }
 
   // ---------- the heads-up bits ----------
-  /** One small lamp for each on the street, lit as they are lit (instead of the other prints' ink bar). */
+  /** One small red lantern for each, lit as they are lit. */
   function drawCounter(sim) {
-    const list = [...sim.lamps].sort((a, b) => a.u - b.u);
-    list.forEach((l, i) => {
-      const x = 34 + i * 22, y = 40;
-      ctx.fillStyle = 'rgba(239,228,198,0.75)'; ctx.fillRect(x - 1, y - 2, 2, 16);
-      ctx.fillStyle = l.lit ? '#ffd98a' : 'rgba(239,228,198,0.25)';
-      ctx.strokeStyle = 'rgba(239,228,198,0.8)'; ctx.lineWidth = 1.2;
-      ctx.beginPath(); ctx.moveTo(x - 6, y - 14); ctx.lineTo(x + 6, y - 14); ctx.lineTo(x + 4, y - 2); ctx.lineTo(x - 4, y - 2); ctx.closePath(); ctx.fill(); ctx.stroke();
+    sim.lanterns.forEach((l, i) => {
+      const x = 32 + i * 15, y = 34;
+      ctx.fillStyle = l.lit ? '#f0703f' : 'rgba(239,228,198,0.12)';
+      ctx.strokeStyle = 'rgba(239,228,198,0.7)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.ellipse(x, y, 4.5, 6, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     });
-    ui.text('LAMPS', 26, 70, 13, INK, 'left');
   }
   function flame(x, y, s) {
     ctx.fillStyle = '#e8892f'; ctx.beginPath(); ctx.moveTo(x, y - 22 * s); ctx.quadraticCurveTo(x + 13 * s, y - 2 * s, x, y + 10 * s); ctx.quadraticCurveTo(x - 13 * s, y - 2 * s, x, y - 22 * s); ctx.fill();
@@ -383,12 +332,12 @@ export function createLampArt(canvas) {
       resume: [id, '', 'RESUME'], album: [id, '', 'BACK TO THE ALBUM'], sound: [id, 'SOUND', s.sound ? 'ON' : 'OFF'],
       restart: [id, '', sim.restartArmed ? 'TAP AGAIN TO START THE PRINT OVER' : 'START THE PRINT OVER'],
     })[id]);
-    ui.pauseMenu(rows, { W, sel: sim.pauseRow, armed: sim.restartArmed, build: BUILD, footer: ['TAP THE STREET TO WALK THERE', MUTED] });
+    ui.pauseMenu(rows, { W, sel: sim.pauseRow, armed: sim.restartArmed, build: BUILD, footer: ['HOLD A FINGER TO WALK, LET GO TO STOP', MUTED] });
   }
   function drawComplete(sim) {
     ctx.globalAlpha = clamp(sim.completeT / 2, 0, 1);
-    ui.text('THE LAMPLIGHTER', W / 2, 185, 44, INK, 'center', 'bold');
-    ui.text('COMPLETE', W / 2, 235, 24, INK, 'center');
+    ui.text('THE LAMPLIGHTER', W / 2, 150, 44, INK, 'center', 'bold');
+    ui.text('COMPLETE', W / 2, 200, 24, INK, 'center');
     ui.seal(W - 90, VH - 90, 1.6);
     ctx.globalAlpha = 1;
     if (sim.completeT >= DONE_WAIT) ui.choices(DONE_CHOICES, { W, sel: sim.choice, ready: true, alpha: clamp((sim.completeT - DONE_WAIT) / 0.6, 0, 1) });
@@ -398,25 +347,20 @@ export function createLampArt(canvas) {
   function draw(sim, uiState = {}, now = 0) {
     const dt = Math.min(0.1, Math.max(0, (now - lastT) / 1000)); lastT = now;
     const time = now / 1000;
-    lamps = sim.lamps.map((l) => {
-      const x = lampX(l, W), sc = streetScale(l.y);
-      return { x, y: l.y, sc, glow: l.glow, hx: x, hy: l.y - LAMP_H * sc - 10 * sc };
-    });
+    lights = sim.lanterns.map((l) => ({ x: lanternX(l, W), glow: l.glow }));
 
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
     drawSky();
-    drawFar();
+    drawPagoda();
     drawHouses();
     drawStreet();
-    drawWash();
-    // lamps and people, nearest last
-    const items = lamps.map((l) => ({ y: l.y, f: () => drawLamp(l) }));
-    for (const w of sim.walkers) items.push({ y: w.y, f: () => drawWalker(w) });
+    for (const w of sim.walkers) if (w.lane === 'arcade') drawWalker(w);       // inside the arcade, behind its posts
+    drawPosts();
+    drawLanterns(sim, time);
     sim.flameAt = null;
-    if (sim.state !== 'title') items.push({ y: sim.player.y + 0.5, f: () => drawPlayer(sim, time) });
-    items.sort((a, b) => a.y - b.y);
-    for (const it of items) it.f();
-    drawHalos(sim, time);
+    if (sim.state !== 'title') drawPlayer(sim, time);
+    for (const w of sim.walkers) if (w.lane === 'street') drawWalker(w);       // along the street, in front of him
+    drawGlow(sim);
     ui.paperGrain(W);
     if (uiState.bare) return;
     if (sim.state !== 'title') {

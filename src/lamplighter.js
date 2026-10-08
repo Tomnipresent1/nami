@@ -1,43 +1,43 @@
-// THE LAMPLIGHTER (print 4, Meiji Tokyo at night; colour after Kiyochika, the street front after Hiroshige III's Shintomi theatre
-// and the flat-on house fronts of Eizan, Yoshiiku and Moronobu): the rules. One street, seen flat-on, all on one screen. You are the
-// lamplighter: tap the street and he walks there; next to an unlit gas lamp the LIGHT button shows; tap it and he raises his long
-// pole and the lamp catches. Each lamp warms the street and the house fronts around it. Light them all and the print is complete.
-// The sky never changes (Tom): the only change of light is the lamps. A few quiet passers-by; meet one and you both bow.
+// THE LAMPLIGHTER (print 4, Meiji Tokyo at night; colour after Kiyochika's "Night Stalls at Asakusa", the close flat-on house
+// fronts after Moronobu's teahouse (research 16), Eizan and Yoshiiku): the rules. One screen, seen flat-on and close: three house
+// fronts, their ground floors an inset ARCADE with red paper lanterns hanging along its eaves. You are the lamplighter, walking
+// the street just outside the arcade: hold a finger and he walks toward it, let go and he stops. Under an unlit lantern the LIGHT
+// button shows; tap it and he reaches up with his pole and the lantern catches. Light them all and the print is complete.
+// The sky never changes (Tom): the only change of light is the lanterns. Passers-by stroll inside the arcade and along the street.
 // Pure logic: no drawing, no sound, no DOM. tools/selftest.mjs plays it with a bot.
 //
-// Positions are picture units: x across (0..W), y = where the feet are, down the picture (STREET_BACK at the house fronts,
-// STREET_FRONT nearest you). People nearer the front are drawn a little bigger (streetScale).
+// Positions are picture units. He walks one line (WALK_Y), left and right only (v1.4.2, Tom).
 import { clamp } from './ocean.js';
 import { MIN_W, MAX_W, PAUSE_Y0, PAUSE_DY } from './sim.js';
 import { readChoice } from './choice.js';
 
-export const STREET_BACK = 352;              // the foot of the house fronts
-export const STREET_FRONT = 566;             // the nearest you can walk
-/** How big someone standing at y looks (nearer = bigger). */
-export const streetScale = (y) => 0.82 + 0.4 * (y - STREET_BACK) / (STREET_FRONT - STREET_BACK);
+// ---- the picture, top to bottom ----
+export const EAVE_Y = 262;                   // the front edge of the arcade's roof: the lanterns hang from it
+export const LANTERN_Y = 302;                // where a lantern hangs (its middle)
+export const ARCADE_Y = 452;                 // where people walking inside the arcade have their feet
+export const SILL_Y = 466;                   // the arcade's front edge (its stone sill)
+export const WALK_Y = 506;                   // the lamplighter's line, just outside the arcade
+export const STREET_Y = 568;                 // people walking along the street, in front of him
+/** How big someone with their feet at y looks (nearer = bigger). */
+export const figScaleAt = (y) => 1 + 0.0042 * (y - WALK_Y);
+
+// three house fronts across the screen (fractions of the width) and how many lanterns hang under each one's eaves
+export const HOUSES = [{ u0: 0, u1: 0.31, n: 4 }, { u0: 0.31, u1: 0.67, n: 5 }, { u0: 0.67, u1: 1, n: 4 }];
+export const LANTERNS = HOUSES.flatMap((h, hi) => Array.from({ length: h.n }, (_, i) => ({ house: hi, u: h.u0 + (h.u1 - h.u0) * (0.14 + (0.72 * i) / (h.n - 1)) })));
+export const lanternX = (l, W) => l.u * W;
 
 export const LTUNE = {
-  walkSpeed: 62,           // picture units per second (an unhurried walk)
-  ease: 7,                 // how gently he starts and stops
-  reachX: 70, reachY: 44,  // how close to a lamp's foot he must be for the LIGHT button to show
-  lightSecs: 2.6,          // stepping to the post, raising the pole, the flame catching, lowering it again
-  catchAt: 1.35,           // ... the moment the lamp catches
-  glowSecs: 1.6,           // a lit lamp's light spreads over this long
-  doneDelay: 2.2,          // after the last lamp catches, a moment to see the street lit before "complete"
-  bowNear: [34, 18],       // meet someone this close (across, depth) and you both bow
-  bowSecs: 1.4,
-  bowGap: 6,
-  walkers: 4,              // passers-by on the street at once
+  walkSpeed: 52,           // picture units per second: a slow walk (he crosses the screen in about 25 s)
+  start: 10, stop: 18,     // how quickly he gets going, and stops when the finger lifts (quick: nothing slippy, Tom)
+  reach: 26,               // how close (across) he must be to a lantern for the LIGHT button to show
+  standOff: 16,            // he stands just to the left of the lantern to light it
+  lightSecs: 2.8,          // stepping into place, raising the pole, the lantern catching, lowering it again
+  catchAt: 1.45,
+  glowSecs: 1.4,
+  doneDelay: 2.2,          // after the last lantern catches, a moment to see the street lit before "complete"
+  arcadeWalkers: 3, streetWalkers: 3,
+  nodNear: 40,             // passers-by nod as they pass you this close (they never stop you)
 };
-
-// the lamps: a zigzag along the street, some by the house fronts, some nearer you (u = how far across, 0..1)
-export const LAMPS = [
-  { u: 0.08, y: 382 }, { u: 0.22, y: 508 }, { u: 0.36, y: 386 }, { u: 0.5, y: 516 },
-  { u: 0.64, y: 384 }, { u: 0.78, y: 510 }, { u: 0.92, y: 388 },
-];
-export const lampX = (lamp, W) => lamp.u * W;
-/** Where he stands to light lamp i (just to the left of its post, a step nearer you). */
-export const lightSpot = (lamp, W) => [lampX(lamp, W) - 30 * streetScale(lamp.y), lamp.y + 6];
 
 // the LIGHT button: round, bottom right, like Plum Blossom's GATHER (centre x, centre y, radius). Taps are generous.
 export const lightButton = (W) => [W - 100, 600 - 100, 62];
@@ -46,7 +46,8 @@ export const onLightButton = (x, y, W) => { const [cx, cy, r] = lightButton(W); 
 export const LAMP_PAUSE_ROWS = ['resume', 'album', 'sound', 'restart'];
 export const DONE_CHOICES = ['LIGHT THEM AGAIN', 'BACK TO THE ALBUM'];
 export const DONE_WAIT = 4;
-export const WALKER_KINDS = ['lantern', 'lantern', 'plain', 'umbrella', 'rickshaw'];
+const ARCADE_KINDS = ['lantern', 'plain', 'plain', 'pair'];
+const STREET_KINDS = ['lantern', 'lantern', 'plain', 'rickshaw'];
 
 function mulberry32(a) {
   return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -62,13 +63,13 @@ export class Street {
     this.recentreRequest = false; this.albumRequest = false;
     this.state = 'title';
     this.reset();
-    this.lightAll();                 // behind the album card the street shows finished: every lamp lit
+    this.lightAll();                 // behind the album card the street shows finished: every lantern lit
   }
 
   setWidth(w) {
     if (!Number.isFinite(w)) return;
     this.W = clamp(Math.round(w), MIN_W, MAX_W);
-    if (this.player) this.player.x = clamp(this.player.x, 20, this.W - 20);
+    if (this.player) this.player.x = clamp(this.player.x, 30, this.W - 30);
   }
   get tiltSteer() { return false; }
   get tiltFlip() { return false; }
@@ -78,24 +79,26 @@ export class Street {
     this.t = 0; this.tick = 0;
     this.ink = 0; this.inkShown = 0;
     this.events = [];
-    this.stats = { lit: 0, bows: 0, rounds: 0 };
+    this.stats = { lit: 0, nods: 0, rounds: 0 };
     this.endless = false; this.completeT = 0; this.choice = 0; this.doneT = 0;
     this.message = null;
     this.cricketIn = 2;
+    this.lanterns = null;
     this.newRound();
     this.walkers = [];
-    for (let i = 0; i < LTUNE.walkers; i++) this.spawnWalker(true);
+    for (let i = 0; i < LTUNE.arcadeWalkers; i++) this.spawnWalker('arcade', true);
+    for (let i = 0; i < LTUNE.streetWalkers; i++) this.spawnWalker('street', true);
   }
   newRound() {
-    this.lamps = LAMPS.map((l) => ({ ...l, lit: false, glow: this.lamps ? (this.lamps.find((o) => o.u === l.u)?.glow ?? 0) : 0 }));   // (any old glow fades out)
-    this.player = { x: this.W * 0.03, y: 470, vx: 0, vy: 0, face: 1, step: 0, lightT: 0, lamp: -1, raise: 0, bowT: 0, bow: 0, fade: 0 };
-    this.target = null;              // where he is walking to (picture units), or null
-    this.drag = null;                // the touch now steering (so a touch that began on the LIGHT button is left alone)
-    this.reachable = -1;             // the unlit lamp within reach (the LIGHT button shows), or -1
+    const old = this.lanterns;
+    this.lanterns = LANTERNS.map((l, i) => ({ ...l, lit: false, glow: old ? old[i].glow : 0 }));   // (any old glow fades out)
+    this.player = { x: this.W * 0.05, vx: 0, face: 1, step: 0, lightT: 0, lantern: -1, raise: 0, fade: 0, nod: 0 };
+    this.drag = null;                // the touch now steering (a touch that began on the LIGHT button is left alone)
+    this.reachable = -1;             // the unlit lantern within reach (the LIGHT button shows), or -1
     this.doneT = 0;
   }
-  lightAll() { for (const l of this.lamps) { l.lit = true; l.glow = 1; } }
-  get litCount() { return this.lamps.filter((l) => l.lit).length; }
+  lightAll() { for (const l of this.lanterns) { l.lit = true; l.glow = 1; } }
+  get litCount() { return this.lanterns.filter((l) => l.lit).length; }
 
   say(type, data = {}) { this.events.push({ type, ...data }); }
   msg(text, secs = 3.5) { this.message = { text, t: secs, total: secs }; }
@@ -134,7 +137,7 @@ export class Street {
   }
 
   // ---------- one step ----------
-  /** inp: { fingerX, fingerY (picture units while a finger is down, else null), touchId, steer -1..1 / vert -1..1 (keys), keys, taps, start } */
+  /** inp: { fingerX (picture units while a finger is down, else null), fingerY, touchId, steer -1..1 (keys), keys, taps, start } */
   update(dt, inp = {}) {
     this.tick++;
     const keys = inp.keys || [], taps = inp.taps || [];
@@ -142,7 +145,7 @@ export class Street {
     if (this.state === 'title') {
       if (keys.length || taps.length || inp.start) {
         this.reset(); this.state = 'play'; this.say('start');
-        this.msg('TAP THE STREET TO WALK. LIGHT EVERY LAMP', 6);
+        this.msg('HOLD A FINGER TO WALK. LIGHT EVERY LANTERN', 6);
         return;
       }
       this.stepWorld(dt, {}, false);
@@ -154,7 +157,7 @@ export class Street {
       if (this.completeT < DONE_WAIT) return;
       const r = readChoice(keys, taps, this.W, this.choice);
       if (r.sel !== this.choice) { this.choice = r.sel; this.say('blip'); }
-      if (r.chosen === 0) {                                  // the lamps go out, and a new evening begins
+      if (r.chosen === 0) {                                  // the lanterns go out, and a new evening begins
         this.newRound(); this.ink = 0; this.state = 'play'; this.say('start');
       } else if (r.chosen === 1) {                           // back to the album: the street waits there, finished, for next time
         this.state = 'title'; this.lightAll(); this.albumRequest = true; this.say('blip');
@@ -166,21 +169,12 @@ export class Street {
     this.stepWorld(dt, inp, true);
   }
 
-  /** Raise the pole to the unlit lamp within reach (does nothing if none is). */
+  /** Reach up to the unlit lantern within reach (does nothing if none is). */
   startLight() {
     const p = this.player;
-    if (this.reachable < 0 || p.lightT > 0 || p.bowT > 0 || this.state !== 'play') return false;
-    p.lightT = LTUNE.lightSecs; p.lamp = this.reachable; this.target = null;
+    if (this.reachable < 0 || p.lightT > 0 || this.state !== 'play') return false;
+    p.lightT = LTUNE.lightSecs; p.lantern = this.reachable;
     return true;
-  }
-
-  /** Where a finger at picture x,y sends him: onto the street; a touch on a lamp (anywhere up its post) goes to its foot. */
-  aimFor(x, y) {
-    for (const l of this.lamps) {
-      const lx = lampX(l, this.W), sc = streetScale(l.y);
-      if (Math.abs(x - lx) < 34 * sc && y < l.y + 10 && y > l.y - 200 * sc) return lightSpot(l, this.W);
-    }
-    return [clamp(x, 20, this.W - 20), clamp(y, STREET_BACK + 6, STREET_FRONT)];
   }
 
   stepWorld(dt, inp, scoring) {
@@ -189,112 +183,98 @@ export class Street {
     if (this.message && (this.message.t -= dt) <= 0) this.message = null;
     if ((this.cricketIn -= dt) <= 0) { this.say('cricket'); this.cricketIn = 3 + this.rand() * 7; }
 
-    // ---- the lamps: a lit lamp's light spreads; an unlit one's fades away (a new evening) ----
-    for (const l of this.lamps) l.glow = clamp(l.glow + (l.lit ? dt / T.glowSecs : -dt / 1.2), 0, 1);
+    // ---- the lanterns: a lit one's glow swells; an unlit one's fades away (a new evening) ----
+    for (const l of this.lanterns) l.glow = clamp(l.glow + (l.lit ? dt / T.glowSecs : -dt / 1.2), 0, 1);
 
     // ---- you ----
     if (this.state !== 'title') {
       p.fade = Math.min(1, p.fade + dt / 1.2);
-      if (p.bowT > 0) { p.bowT -= dt; p.bow = Math.sin(clamp(1 - p.bowT / T.bowSecs, 0, 1) * Math.PI); } else p.bow = 0;
-      let wantX = 0, wantY = 0;
+      let want = 0;
+      // each new touch: one that lands on the LIGHT button (while it shows, or while he is lighting) never walks him
+      if (inp.fingerX != null) {
+        if (!this.drag || this.drag.id !== inp.touchId) this.drag = { id: inp.touchId, button: (this.reachable >= 0 || p.lightT > 0) && onLightButton(inp.fingerX, inp.fingerY ?? 0, this.W) };
+      } else this.drag = null;
       if (p.lightT > 0) {
-        // lighting: step to the spot beside the post, raise the pole, the flame catches, lower it again
-        const l = this.lamps[p.lamp], before = p.lightT;
+        // lighting: step into place beside the lantern, raise the pole, the lantern catches, lower it again
+        const l = this.lanterns[p.lantern], before = p.lightT;
         p.lightT -= dt;
-        const e = T.lightSecs - p.lightT;                     // seconds since it began
-        const [sx, sy] = lightSpot(l, this.W);
-        if (e < 0.45) { p.x += (sx - p.x) * Math.min(1, dt * 9); p.y += (sy - p.y) * Math.min(1, dt * 9); p.step += dt * 1.5; }
+        const e = T.lightSecs - p.lightT, sx = lanternX(l, this.W) - T.standOff;
+        if (p.x !== sx) { const mv = clamp(sx - p.x, -T.walkSpeed * dt, T.walkSpeed * dt); p.x += mv; p.step += Math.abs(mv) / 34; }   // (a step or two into place)
         p.face = 1;
-        p.raise = e < 0.35 ? 0 : e < 1.15 ? smooth01((e - 0.35) / 0.8) : e < 1.65 ? 1 : smooth01(1 - (e - 1.65) / (T.lightSecs - 1.65));
+        p.raise = e < 0.4 ? 0 : e < 1.2 ? smooth01((e - 0.4) / 0.8) : e < 1.75 ? 1 : smooth01(1 - (e - 1.75) / (T.lightSecs - 1.75));
         if (T.lightSecs - before < T.catchAt && e >= T.catchAt && !l.lit) {
           l.lit = true; this.stats.lit++;
-          if (scoring) { this.addInk(100 / this.lamps.length); this.say('light', { n: this.litCount }); }
-          if (this.litCount === this.lamps.length && scoring) this.doneT = T.doneDelay + (T.lightSecs - e);
-          else if (scoring && this.litCount === 1) this.msg('THE FIRST LAMP IS LIT', 3);
+          if (scoring) { this.addInk(100 / this.lanterns.length); this.say('light', { n: this.litCount }); }
+          if (this.litCount === this.lanterns.length && scoring) this.doneT = T.doneDelay + (T.lightSecs - e);
+          else if (scoring && this.litCount === 1) this.msg('THE FIRST LANTERN IS LIT', 3);
         }
-        if (p.lightT <= 0) { p.lightT = 0; p.raise = 0; p.lamp = -1; }
-        p.vx = 0; p.vy = 0;
-      } else if (playing && p.bowT <= 0) {
-        // where to walk: a finger on the street (held or just tapped: he keeps going to where you touched), or the arrow keys
+        if (p.lightT <= 0) { p.lightT = 0; p.raise = 0; p.lantern = -1; }
+        p.vx = 0;
+      } else if (playing) {
+        // hold a finger and he walks toward it; let go and he stops (the arrow keys walk him too)
         if (inp.fingerX != null) {
-          if (!this.drag || this.drag.id !== inp.touchId) this.drag = { id: inp.touchId, button: this.reachable >= 0 && onLightButton(inp.fingerX, inp.fingerY, this.W) };
-          if (!this.drag.button) this.target = this.aimFor(inp.fingerX, inp.fingerY);
-        } else this.drag = null;
-        const kx = clamp(inp.steer || 0, -1, 1), ky = clamp(inp.vert || 0, -1, 1);
-        if (inp.fingerX == null && (kx || ky)) { this.target = null; wantX = kx * T.walkSpeed; wantY = -ky * T.walkSpeed * 0.7; }
-        else if (this.target) {
-          const dx = this.target[0] - p.x, dy = this.target[1] - p.y, d = Math.hypot(dx, dy);
-          if (d < 2) this.target = null;
-          else { const sp = Math.min(T.walkSpeed, d * 3); wantX = (dx / d) * sp; wantY = (dy / d) * sp; }
-        }
+          if (!this.drag.button) { const dx = clamp(inp.fingerX, 30, this.W - 30) - p.x; want = Math.abs(dx) < 3 ? 0 : clamp(dx / 25, -1, 1) * T.walkSpeed; }
+        } else want = clamp(inp.steer || 0, -1, 1) * T.walkSpeed;
       }
       if (p.lightT <= 0) {
-        p.vx += (wantX - p.vx) * Math.min(1, dt * T.ease); p.vy += (wantY - p.vy) * Math.min(1, dt * T.ease);
-        p.x = clamp(p.x + p.vx * dt, 20, this.W - 20); p.y = clamp(p.y + p.vy * dt, STREET_BACK + 6, STREET_FRONT);
-        const sp = Math.hypot(p.vx, p.vy);
-        if (sp < 1 && !wantX && !wantY) { p.vx = 0; p.vy = 0; }
-        if (Math.abs(p.vx) > 4) p.face = Math.sign(p.vx);
-        p.step += sp * dt / 42;
+        p.vx += (want - p.vx) * Math.min(1, dt * (Math.abs(want) > Math.abs(p.vx) ? T.start : T.stop));
+        if (!want && Math.abs(p.vx) < 2) p.vx = 0;
+        p.x = clamp(p.x + p.vx * dt, 30, this.W - 30);
+        if (Math.abs(p.vx) > 3) p.face = Math.sign(p.vx);
+        p.step += Math.abs(p.vx) * dt / 34;
       }
 
-      // which unlit lamp is within reach: the LIGHT button shows while there is one
+      // which unlit lantern is within reach: the LIGHT button shows while there is one
       this.reachable = -1;
       if (playing && p.lightT <= 0) {
-        let best = Infinity;
-        this.lamps.forEach((l, i) => {
+        let best = T.reach;
+        this.lanterns.forEach((l, i) => {
           if (l.lit) return;
-          const [sx, sy] = lightSpot(l, this.W), dx = Math.abs(p.x - sx), dy = Math.abs(p.y - sy);
-          if (dx < T.reachX && dy < T.reachY && dx + dy < best) { best = dx + dy; this.reachable = i; }
+          const d = Math.min(Math.abs(p.x - lanternX(l, this.W)), Math.abs(p.x - (lanternX(l, this.W) - T.standOff)));
+          if (d < best) { best = d; this.reachable = i; }
         });
-        if (this.reachable >= 0 && scoring && !this.hinted) { this.hinted = true; this.msg('TAP THE GLOWING BUTTON TO LIGHT THE LAMP', 5); }
+        if (this.reachable >= 0 && scoring && !this.hinted) { this.hinted = true; this.msg('TAP THE GLOWING BUTTON TO LIGHT THE LANTERN', 5); }
       }
 
-      // the last lamp has caught: a moment to look at the lit street, then the print is complete
+      // the last lantern has caught: a moment to look at the lit street, then the print is complete
       if (this.doneT > 0 && (this.doneT -= dt) <= 0 && playing) {
         this.doneT = 0; this.stats.rounds++;
-        this.state = 'complete'; this.completeT = 0; this.choice = 0; this.target = null; this.reachable = -1;
+        this.state = 'complete'; this.completeT = 0; this.choice = 0; this.reachable = -1; p.vx = 0;
         this.say('complete'); this.msg('THE STREET IS LIT', 6);
       }
     }
 
-    // ---- the passers-by ----
+    // ---- the passers-by: inside the arcade behind you, and along the street in front of you (they never stop you) ----
     for (const w of this.walkers) {
       if (w.wait > 0) { w.wait -= dt; continue; }
-      if (w.bowT > 0) { w.bowT -= dt; continue; }
       w.x += w.dir * w.speed * dt;
       w.step += w.speed * dt / 40;
-      w.y += (w.lane - w.y) * Math.min(1, dt * 1.2);
       w.swing = Math.sin(this.t * 2.2 + w.phase);
-      if (this.state === 'title' || this.state === 'complete') continue;
-      // they step out of your way if you are in theirs (they never walk into you)
-      const ahead = (p.x - w.x) * w.dir, sc = streetScale(w.y);
-      if (ahead > -10 && ahead < 110 * sc && Math.abs(p.y - w.y) < 26) w.lane = clamp(w.y + (w.y <= p.y ? -1 : 1) * 40, STREET_BACK + 10, STREET_FRONT - 4);
-      // meet someone close and you both bow (not while you are lighting a lamp, and not too often)
-      if (playing && !w.bowed && w.kind !== 'rickshaw' && p.lightT <= 0 && p.bowT <= 0 && this.t - (this.lastBow ?? -99) > T.bowGap
-        && Math.abs(p.x - w.x) < T.bowNear[0] * sc && Math.abs(p.y - w.y) < T.bowNear[1]) {
-        w.bowed = true; w.bowT = T.bowSecs; p.bowT = T.bowSecs; this.lastBow = this.t; this.stats.bows++;   // (afterwards he carries on to where you sent him)
+      w.nod = Math.max(0, w.nod - dt / 1.2);
+      // a polite nod as they pass close by you
+      if (this.state === 'play' && !w.nodded && w.kind !== 'rickshaw' && Math.abs(w.x - p.x) < T.nodNear) {
+        w.nodded = true; w.nod = 1; p.nod = 1; this.stats.nods++;
         if (scoring) this.say('bow');
       }
     }
+    p.nod = Math.max(0, p.nod - dt / 1.2);
     for (let i = 0; i < this.walkers.length; i++) {
       const w = this.walkers[i];
-      if (w.x < -140 || w.x > this.W + 140) { this.walkers.splice(i, 1); i--; this.spawnWalker(false); }
+      if (w.x < -160 || w.x > this.W + 160) { this.walkers.splice(i, 1); i--; this.spawnWalker(w.lane, false); }
     }
     this.inkShown += (this.ink - this.inkShown) * Math.min(1, dt * 1.6);
   }
 
-  /** Someone sets off along the street from one side (or, at the start, is already part-way along). */
-  spawnWalker(already) {
-    const r = this.rand, kind = WALKER_KINDS[Math.floor(r() * WALKER_KINDS.length)];
-    // (only one rickshaw at a time)
-    const k = kind === 'rickshaw' && this.walkers.some((w) => w.kind === 'rickshaw') ? 'lantern' : kind;
+  /** Someone sets off from one side, inside the arcade or along the street (at the start, already part-way along). */
+  spawnWalker(lane, already) {
+    const r = this.rand, kinds = lane === 'arcade' ? ARCADE_KINDS : STREET_KINDS;
+    let kind = kinds[Math.floor(r() * kinds.length)];
+    if (kind === 'rickshaw' && this.walkers.some((w) => w.kind === 'rickshaw')) kind = 'lantern';      // (one rickshaw at a time)
     const dir = r() < 0.5 ? 1 : -1;
-    // a lane not too close to anyone else's, so nobody walks through anybody
-    let lane = STREET_BACK + 16 + r() * (STREET_FRONT - STREET_BACK - 20);
-    for (let n = 0; n < 8 && this.walkers.some((w) => Math.abs(w.lane - lane) < 30); n++) lane = STREET_BACK + 16 + r() * (STREET_FRONT - STREET_BACK - 20);
-    const x = already ? 60 + r() * (this.W - 120) : dir > 0 ? -120 : this.W + 120;
-    this.walkers.push({ kind: k, dir, x, y: lane, lane, speed: k === 'rickshaw' ? 62 + r() * 12 : 24 + r() * 14, step: r() * 4, phase: r() * 6, swing: 0,
-      wait: already ? 0 : 1 + r() * 6, bowT: 0, bowed: false, robe: Math.floor(r() * 5) });
+    const x = already ? 80 + r() * (this.W - 160) : dir > 0 ? -140 : this.W + 140;
+    this.walkers.push({ lane, kind, dir, x, y: (lane === 'arcade' ? ARCADE_Y : STREET_Y) + (r() - 0.5) * 8,
+      speed: kind === 'rickshaw' ? 70 + r() * 12 : 22 + r() * 14, step: r() * 4, phase: r() * 6, swing: 0,
+      wait: already ? 0 : 2 + r() * 8, nod: 0, nodded: false, robe: Math.floor(r() * 5) });
   }
 
   addInk(v) {
