@@ -17,7 +17,10 @@ import { readChoice } from './choice.js';
 
 // ---- the camera: standing in the street, looking along the fronts toward the far end (verticals stay upright: a level camera,
 // with its picture shifted so the eye level sits low, as in the photo) ----
-export const CAM = { x: 28, y: 1.6, z: -14.5, lookX: 10, lookZ: 6, F: 600, eye: 440, right: 640 };   // right: where the view's centre sits, from the RIGHT edge
+// v1.4.7 (Tom): every screen shows the SAME view, the one a 975-wide picture gets (his first screenshot: intimate, the player in the
+// scene from the start, close to the left). A wider screen zooms in on it (a little roof and sky trimmed off the top) rather than
+// showing more of the street on the left. refW: that reference width; right: where the view's centre sits, from its right edge.
+export const CAM = { x: 28, y: 1.6, z: -14.5, lookX: 10, lookZ: 6, F: 600, eye: 440, right: 640, refW: 975 };
 const CAMF = (() => { const dx = CAM.lookX - CAM.x, dz = CAM.lookZ - CAM.z, d = Math.hypot(dx, dz); return [dx / d, dz / d]; })();
 /** Camera space: [across (right +), up, depth] for world point X, Y, Z. */
 export function toCam(X, Y, Z) {
@@ -25,7 +28,7 @@ export function toCam(X, Y, Z) {
   return [qx * CAMF[1] - qz * CAMF[0], Y - CAM.y, qx * CAMF[0] + qz * CAMF[1]];
 }
 /** Picture position [x, y] and size factor (picture units per metre) of camera-space point c, on a picture W wide. */
-export const fromCam = (c, W) => { const k = CAM.F / c[2]; return [W - CAM.right + c[0] * k, CAM.eye - c[1] * k, k]; };
+export const fromCam = (c, W) => { const z = W / CAM.refW, k = (CAM.F * z) / c[2]; return [(CAM.refW - CAM.right) * z + c[0] * k, CAM.eye - c[1] * k, k]; };
 /** Picture position [x, y, k] of world point X, Y, Z (only for points in front of the camera). */
 export const project = (X, Y, Z, W) => fromCam(toCam(X, Y, Z), W);
 
