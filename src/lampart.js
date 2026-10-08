@@ -35,6 +35,7 @@ const BODY_UNITS = 35, PERSON_H = 1.62;                   // a drawn person is ~
 const LANTERN_RED = ['#a3261c', '#8e1e16', '#741811'];     // an unlit lantern: red paper in the dark (lit, it goes vermilion with a warm heart)
 const LR = [0.2, 0.27];                                   // a lantern's half-width and half-height (metres)
 const WARM_D = 2.6;                                       // how far (metres) a lantern's light reaches
+const UPPER_WARM = 0;                                     // how lit the upper floors' windows are: fixed (0 = lights off)
 
 // ---- the teahouse in plan (metres): three lines round its ground floor, each walked in the path's direction ----
 const RAIL_LINE = [[-2, 0], [A + 2, 0], [A + 2, RECESS], [B - 2, RECESS], [B - 2, 0], [60, 0]];       // the railing (the walkway's open side)
@@ -213,7 +214,9 @@ export function createLampArt(canvas) {
         // over the set-back storey: the ceiling under the storey (or roof) above, which juts out to the front line
         if (set) poly([[p[0], y1 + 0.3, p[1]], [q[0], y1 + 0.3, q[1]], [q[0], y1 + 0.3, q[1] + set], [p[0], y1 + 0.3, p[1] + set]], SOFFIT);
         pieces([fp, fq], 1.3, (a, c) => {
-          const wm = warmAt((a[0] + c[0]) / 2, a[1] - 1.5) * (k === 0 ? 0.6 : 0.3);
+          // the upper floors stay as they are while he lights the lanterns below (Tom v1.4.18: "lights off" for now, so the eye
+          // stays on the job; UPPER_WARM 0 = always dark; his mockup for a fixed lit look is next)
+          const wm = UPPER_WARM * (k === 0 ? 0.6 : 0.3);
           poly(wallQuad([a[0] + 0.08, a[1] - 0.01], [c[0] - 0.08, c[1] - 0.01], y0 + 0.5, y1 - 0.1), lit(SHOJI, wm));
         });
         ctx.strokeStyle = WOOD_DARK; ctx.lineWidth = 1; ctx.beginPath();
@@ -447,7 +450,7 @@ export function createLampArt(canvas) {
     const c = proj([[w.x, FLOOR1 + 0.05, w.z]]);
     if (!c) return;
     const [x, y, k] = c[0], sz = (k * PERSON_H) / BODY_UNITS;
-    const wm = clamp(warmAt(w.x, w.z - 1) * 0.5, 0, 1), show = 0.35 + 0.65 * wm;
+    const wm = UPPER_WARM * 0.5, show = 0.35 + 0.65 * wm;                         // (upstairs: not lit by the lanterns either)
     drawBody(x, y, sz, { face: w.goX != null ? screenFacing(w.x, w.z, w.dir, 0) : (w.robe % 2 ? 1 : -1), step: w.step, still: w.goX == null, sit: w.kind === 'sit', look: w.head,
       body: mixHex(SIL, KIMONO[w.robe % KIMONO.length], show), head: mixHex('#2a2522', SKIN, 0.25 + wm * 0.7), hair: w.robe % 3 ? '#121212' : null, knot: SIL,
       fan: w.fan ? mixHex(SIL, '#c9b88a', show) : null, fanT: time + w.phase, bow: 0 });
