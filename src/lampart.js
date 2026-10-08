@@ -20,7 +20,7 @@ const ROOF = '#2c3035', SOFFIT = '#121110', FASCIA = '#3a3d40';              // 
 // the teahouse's roofs (v1.4.11, Tom): a deep red, a little deeper than the lamplighter's coat, not bright or garish
 const TEA_ROOF = '#3e1d19', TEA_EDGE = '#2c1512';
 const WOOD = '#2a241f', WOOD_SIDE = '#221d19', WOOD_DARK = '#171512', POST = '#1b1815';
-const RAIL = ['#2e2822', '#7a3a2a'];                      // the railing's boards: dark, and warmed by a lantern
+const RAIL = ['#2e2822', '#5c2d23'];                      // the railing's boards: dark, and warmed by a lantern
 const SHOJI = ['#2e2f2b', '#f0c98a'];                     // paper windows upstairs
 const LATTICE = ['#141210', '#d2704c'];                   // the paper behind the ground floor's lattice
 const NOREN = ['#141a28', '#30406a'];                     // the indigo noren over the main door (deep: a paler one read as a hole to the sky)
@@ -276,7 +276,7 @@ export function createLampArt(canvas) {
       if (!facing(p, q, out)) return;
       const mx = (p[0] + q[0]) / 2, mz = (p[1] + q[1]) / 2;
       items.push({ d: depthOf(mx, 0.5, mz), f: () => {
-        poly(wallQuad(p, q, 0, RAIL_H), lit(RAIL, warmAt(mx, mz) * 0.75));
+        poly(wallQuad(p, q, 0, RAIL_H), lit(RAIL, warmAt(mx, mz) * 0.5));
         poly(wallQuad(p, q, RAIL_H - 0.1, RAIL_H), WOOD_DARK);
         ctx.strokeStyle = WOOD_DARK; ctx.lineWidth = 1; ctx.beginPath();
         for (const t of [0.25, 0.5, 0.75]) line([p[0] + (q[0] - p[0]) * t, 0, p[1] + (q[1] - p[1]) * t], [p[0] + (q[0] - p[0]) * t, RAIL_H - 0.1, p[1] + (q[1] - p[1]) * t]);
@@ -287,10 +287,13 @@ export function createLampArt(canvas) {
     const posts = [];
     for (let i = 0; i < RAIL_LINE.length - 1; i++) {
       const [x0, z0] = RAIL_LINE[i], [x1, z1] = RAIL_LINE[i + 1], len = Math.hypot(x1 - x0, z1 - z0), n = Math.max(1, Math.round(len / 2.6));
-      for (let j = 0; j < n; j++) posts.push([x0 + ((x1 - x0) * j) / n, z0 + ((z1 - z0) * j) / n]);
+      // (each just OUTSIDE the railing, Tom v1.4.15: on the line itself, some were half-covered by the railing beside them and seemed
+      // to stand inside the fence)
+      const out = [(z1 - z0) / len, -(x1 - x0) / len];
+      for (let j = 0; j < n; j++) posts.push([x0 + ((x1 - x0) * j) / n + out[0] * 0.12, z0 + ((z1 - z0) * j) / n + out[1] * 0.12]);
     }
     for (const [x, z] of posts) {
-      const d = depthOf(x, 1.5, z) - 0.05;
+      const d = depthOf(x, 1.5, z) - 0.6;                                                    // (always in front of the railing beside it)
       items.push({ d, f: () => { poly(wallQuad([x - 0.08, z - 0.08], [x + 0.08, z - 0.08], 0, BEAM_H), POST); poly(wallQuad([x + 0.08, z - 0.08], [x + 0.08, z + 0.08], 0, BEAM_H), POST); } });
     }
     for (const l of sim.lanterns) { const [x, y, z] = lanternAt(l); items.push({ d: depthOf(x, y, z) - 0.1, f: () => drawLantern(l, time) }); }
@@ -333,23 +336,30 @@ export function createLampArt(canvas) {
     ctx.stroke();
     ctx.fillStyle = POST; ctx.fillRect(x - 0.11 * k, y - ry - 0.03 * k, 0.22 * k, 0.06 * k); ctx.fillRect(x - 0.11 * k, y + ry - 0.03 * k, 0.22 * k, 0.06 * k);
   }
-  /** Warm light added on top: halos round the lit lanterns, a wash over the walkway, a pool on the ground. */
+  /** The red wash the lit lanterns throw over the walkway and the lattice behind it. Drawn BEFORE the railing, posts and people, so
+   *  the fence keeps the light inside (Tom v1.4.15: it spilled over the fence and the street, too bright). */
+  function drawWash(sim) {
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    for (const l of sim.lanterns) {
+      if (l.glow <= 0.01) continue;
+      const c = proj([lanternAt(l)]);
+      if (!c) continue;
+      const [x, y, k] = c[0], a = l.glow;
+      const g = ctx.createRadialGradient(x, y + 0.9 * k, 4, x, y + 0.9 * k, 3 * k);
+      g.addColorStop(0, `rgba(255,70,45,${0.2 * a})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.fillRect(x - 3 * k, y - 2.1 * k, 6 * k, 6 * k);
+    }
+    ctx.restore();
+  }
+  /** Light added on top of everything: the halo round each lit lantern, the passers-by's lanterns, his little flame. */
   function drawGlow(sim) {
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
     for (const l of sim.lanterns) {
       if (l.glow <= 0.01) continue;
-      const [X, Y, Z] = lanternAt(l), c = proj([[X, Y, Z]]), f = proj([[X, 0, Z]]);
-      if (!c || !f) continue;
+      const c = proj([lanternAt(l)]);
+      if (!c) continue;
       const [x, y, k] = c[0], a = l.glow;
-      let g = ctx.createRadialGradient(x, y + 0.9 * k, 4, x, y + 0.9 * k, 3 * k);
-      g.addColorStop(0, `rgba(255,70,45,${0.2 * a})`); g.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = g; ctx.fillRect(x - 3 * k, y - 2.1 * k, 6 * k, 6 * k);
-      ctx.save(); ctx.translate(f[0][0], f[0][1]); ctx.scale(1, 0.3);
-      g = ctx.createRadialGradient(0, 0, 2, 0, 0, 2.6 * k);
-      g.addColorStop(0, `rgba(255,75,50,${0.2 * a})`); g.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 2.6 * k, 0, Math.PI * 2); ctx.fill();
-      ctx.restore();
-      g = ctx.createRadialGradient(x, y, 3, x, y, 1.1 * k);
+      const g = ctx.createRadialGradient(x, y, 3, x, y, 1.1 * k);
       g.addColorStop(0, `rgba(255,120,90,${0.5 * a})`); g.addColorStop(0.4, `rgba(255,45,30,${0.28 * a})`); g.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 1.1 * k, 0, Math.PI * 2); ctx.fill();
     }
@@ -536,6 +546,7 @@ export function createLampArt(canvas) {
     drawBalconies(sim, time);
     drawWalls();
     drawWalkwayRoof();
+    drawWash(sim);
     // the walkway's railing, posts and lanterns, and him: back to front
     const items = [];
     walkwayItems(sim, time, items);
