@@ -6,36 +6,42 @@
 // The sky never changes (Tom): the only change of light is the lanterns. Passers-by stroll inside the arcade and along the street.
 // Pure logic: no drawing, no sound, no DOM. tools/selftest.mjs plays it with a bot.
 //
-// Positions are picture units. He walks one line (WALK_Y), left and right only (v1.4.2, Tom).
+// Positions are picture units (screen x, and the y of each walking line). He walks one line (WALK_Y), left and right only
+// (v1.4.2, Tom). v1.4.3: the view is OBLIQUE like research 16 (depth runs up and to the right, OBLIQUE per unit of depth), so
+// nobody changes size wherever they walk; the play is further forward, out on the street.
 import { clamp } from './ocean.js';
 import { MIN_W, MAX_W, PAUSE_Y0, PAUSE_DY } from './sim.js';
 import { readChoice } from './choice.js';
 
 // ---- the picture, top to bottom ----
-export const EAVE_Y = 262;                   // the front edge of the arcade's roof: the lanterns hang from it
-export const LANTERN_Y = 302;                // where a lantern hangs (its middle)
-export const ARCADE_Y = 452;                 // where people walking inside the arcade have their feet
-export const SILL_Y = 466;                   // the arcade's front edge (its stone sill)
-export const WALK_Y = 506;                   // the lamplighter's line, just outside the arcade
-export const STREET_Y = 568;                 // people walking along the street, in front of him
-/** How big someone with their feet at y looks (nearer = bigger). */
-export const figScaleAt = (y) => 1 + 0.0042 * (y - WALK_Y);
+export const OBLIQUE = [0.55, -0.55];       // one unit of depth (away from you) moves this far across and up the picture
+export const EAVE_Y = 222;                   // the front edge of the arcade's roof: the lanterns hang from it
+export const LANTERN_Y = 266;                // where a lantern hangs (its middle)
+export const ARCADE_DEPTH = 80;              // how deep the arcade is, front posts to the shop fronts
+export const SILL_Y = 455;                   // the arcade's front edge (its floor, at the front)
+export const ARCADE_Y = SILL_Y + OBLIQUE[1] * 40;   // people walking inside the arcade, halfway in
+export const BACK_Y = 494;                   // people walking along the street, between him and the arcade
+export const WALK_Y = 542;                   // the lamplighter's line, out on the street
+export const STREET_Y = 592;                 // people walking along the street, in front of him
 
 // three house fronts across the screen (fractions of the width) and how many lanterns hang under each one's eaves
-export const HOUSES = [{ u0: 0, u1: 0.31, n: 4 }, { u0: 0.31, u1: 0.67, n: 5 }, { u0: 0.67, u1: 1, n: 4 }];
-export const LANTERNS = HOUSES.flatMap((h, hi) => Array.from({ length: h.n }, (_, i) => ({ house: hi, u: h.u0 + (h.u1 - h.u0) * (0.14 + (0.72 * i) / (h.n - 1)) })));
+// (a..b: the stretch of the front they hang along; the first house's start further in, so he can stand to the left of them)
+export const HOUSES = [{ u0: 0, u1: 0.31, n: 3, a: 0.36, b: 0.86 }, { u0: 0.31, u1: 0.67, n: 5, a: 0.14, b: 0.86 }, { u0: 0.67, u1: 1, n: 4, a: 0.14, b: 0.86 }];
+export const LANTERNS = HOUSES.flatMap((h, hi) => Array.from({ length: h.n }, (_, i) => ({ house: hi, u: h.u0 + (h.u1 - h.u0) * (h.a + ((h.b - h.a) * i) / (h.n - 1)) })));
 export const lanternX = (l, W) => l.u * W;
+/** Where he stands to light lantern l (never off the screen's edge). */
+export const lightSpot = (l, W) => Math.max(30, lanternX(l, W) - LTUNE.standOff);
 
 export const LTUNE = {
   walkSpeed: 52,           // picture units per second: a slow walk (he crosses the screen in about 25 s)
   start: 10, stop: 18,     // how quickly he gets going, and stops when the finger lifts (quick: nothing slippy, Tom)
-  reach: 26,               // how close (across) he must be to a lantern for the LIGHT button to show
-  standOff: 16,            // he stands just to the left of the lantern to light it
+  reach: 24,               // how close (across) he must be to a lantern's lighting spot for the LIGHT button to show
+  standOff: 46,            // he lights it from the street in front, so (in the slanted view) he stands below and to the left of it
   lightSecs: 2.8,          // stepping into place, raising the pole, the lantern catching, lowering it again
   catchAt: 1.45,
   glowSecs: 1.4,
   doneDelay: 2.2,          // after the last lantern catches, a moment to see the street lit before "complete"
-  arcadeWalkers: 3, streetWalkers: 3,
+  walkers: { arcade: 3, back: 2, front: 2 },    // passers-by on each line
   nodNear: 40,             // passers-by nod as they pass you this close (they never stop you)
 };
 
@@ -46,8 +52,9 @@ export const onLightButton = (x, y, W) => { const [cx, cy, r] = lightButton(W); 
 export const LAMP_PAUSE_ROWS = ['resume', 'album', 'sound', 'restart'];
 export const DONE_CHOICES = ['LIGHT THEM AGAIN', 'BACK TO THE ALBUM'];
 export const DONE_WAIT = 4;
-const ARCADE_KINDS = ['lantern', 'plain', 'plain', 'pair'];
-const STREET_KINDS = ['lantern', 'lantern', 'plain', 'rickshaw'];
+// working people, mostly (Tom: less frivolous than the blossom: work, not leisure)
+const KINDS = { arcade: ['lantern', 'plain', 'plain', 'pair', 'bundle'], back: ['porter', 'plain', 'lantern', 'rickshaw', 'bundle'], front: ['plain', 'lantern', 'porter', 'bundle'] };
+const LANE_Y = { arcade: ARCADE_Y, back: BACK_Y, front: STREET_Y };
 
 function mulberry32(a) {
   return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -86,8 +93,7 @@ export class Street {
     this.lanterns = null;
     this.newRound();
     this.walkers = [];
-    for (let i = 0; i < LTUNE.arcadeWalkers; i++) this.spawnWalker('arcade', true);
-    for (let i = 0; i < LTUNE.streetWalkers; i++) this.spawnWalker('street', true);
+    for (const lane in LTUNE.walkers) for (let i = 0; i < LTUNE.walkers[lane]; i++) this.spawnWalker(lane, true);
   }
   newRound() {
     const old = this.lanterns;
@@ -198,7 +204,7 @@ export class Street {
         // lighting: step into place beside the lantern, raise the pole, the lantern catches, lower it again
         const l = this.lanterns[p.lantern], before = p.lightT;
         p.lightT -= dt;
-        const e = T.lightSecs - p.lightT, sx = lanternX(l, this.W) - T.standOff;
+        const e = T.lightSecs - p.lightT, sx = lightSpot(l, this.W);
         if (p.x !== sx) { const mv = clamp(sx - p.x, -T.walkSpeed * dt, T.walkSpeed * dt); p.x += mv; p.step += Math.abs(mv) / 34; }   // (a step or two into place)
         p.face = 1;
         p.raise = e < 0.4 ? 0 : e < 1.2 ? smooth01((e - 0.4) / 0.8) : e < 1.75 ? 1 : smooth01(1 - (e - 1.75) / (T.lightSecs - 1.75));
@@ -230,7 +236,7 @@ export class Street {
         let best = T.reach;
         this.lanterns.forEach((l, i) => {
           if (l.lit) return;
-          const d = Math.min(Math.abs(p.x - lanternX(l, this.W)), Math.abs(p.x - (lanternX(l, this.W) - T.standOff)));
+          const d = Math.abs(p.x - lightSpot(l, this.W));
           if (d < best) { best = d; this.reachable = i; }
         });
         if (this.reachable >= 0 && scoring && !this.hinted) { this.hinted = true; this.msg('TAP THE GLOWING BUTTON TO LIGHT THE LANTERN', 5); }
@@ -244,7 +250,7 @@ export class Street {
       }
     }
 
-    // ---- the passers-by: inside the arcade behind you, and along the street in front of you (they never stop you) ----
+    // ---- the passers-by: inside the arcade, and along the street behind and in front of you (they never stop you) ----
     for (const w of this.walkers) {
       if (w.wait > 0) { w.wait -= dt; continue; }
       w.x += w.dir * w.speed * dt;
@@ -267,14 +273,16 @@ export class Street {
 
   /** Someone sets off from one side, inside the arcade or along the street (at the start, already part-way along). */
   spawnWalker(lane, already) {
-    const r = this.rand, kinds = lane === 'arcade' ? ARCADE_KINDS : STREET_KINDS;
+    const r = this.rand, kinds = KINDS[lane];
     let kind = kinds[Math.floor(r() * kinds.length)];
     if (kind === 'rickshaw' && this.walkers.some((w) => w.kind === 'rickshaw')) kind = 'lantern';      // (one rickshaw at a time)
     const dir = r() < 0.5 ? 1 : -1;
     const x = already ? 80 + r() * (this.W - 160) : dir > 0 ? -140 : this.W + 140;
-    this.walkers.push({ lane, kind, dir, x, y: (lane === 'arcade' ? ARCADE_Y : STREET_Y) + (r() - 0.5) * 8,
-      speed: kind === 'rickshaw' ? 70 + r() * 12 : 22 + r() * 14, step: r() * 4, phase: r() * 6, swing: 0,
-      wait: already ? 0 : 2 + r() * 8, nod: 0, nodded: false, robe: Math.floor(r() * 5) });
+    this.walkers.push({ lane, kind, dir, x, y: LANE_Y[lane] + (r() - 0.5) * 6,
+      speed: kind === 'rickshaw' ? 70 + r() * 12 : kind === 'porter' ? 30 + r() * 8 : 22 + r() * 14, step: r() * 4, phase: r() * 6, swing: 0,
+      wait: already ? 0 : 2 + r() * 8, nod: 0, nodded: false,
+      // plain working clothes: a muted colour, sometimes striped or checked, sometimes a head cloth or an apron
+      robe: Math.floor(r() * 8), pattern: r() < 0.3 ? 'stripe' : r() < 0.45 ? 'check' : '', cloth: r() < 0.35, apron: r() < 0.25 });
   }
 
   addInk(v) {
