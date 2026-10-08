@@ -189,6 +189,7 @@ export const lampSfx = {
     for (let i = 0; i < n; i++) whistle(f, f * 0.97, i * 0.32, 0.22, 0.007 * far);
   },
   bow() { bell(880, 0.08); bell(1318.5, 0.045, 0.32); },
+  arrived() { [0, 2, 4, 6].forEach((i, k) => pluck(SCALE[i], 0.09, k * 0.2, 2.4)); },   // he walks off the edge: the evening is over
   ink() {},                                                                         // (each lamp makes its own sound)
   complete() { sfx.complete(); },
   start() { sfx.start(); },
