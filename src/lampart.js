@@ -38,10 +38,12 @@ const WARM_D = 2.6;                                       // how far (metres) a 
 const UPPER_WARM = 0;                                     // how lit the upper floors' windows are: fixed (0 = lights off)
 // fixed coloured lights inside the upper floors (Tom's mockup, research 37): which block (0 left, 1 recess, 2 near) and storey (0 =
 // the balcony storey), where along the street (X, metres) the brightest panel is, how fast it fades panel by panel (spread, metres),
-// the light's colour and how strongly it tints the paper, and the soft glow it casts on the wall round it. Blue first (v1.4.19);
-// Tom's notes: red on the recess, orange on the left block's top storey, warm yellow on the near block (next rounds).
+// the light's colour and how strongly it tints the paper, and the soft glow it casts on the wall round it. Blue (v1.4.19), yellow
+// (v1.4.20); still to come (Tom's notes): red on the recess, orange on the left block's top storey.
 const UPPER_LIGHTS = [
   { block: 0, storey: 0, x: 16.6, spread: 1.7, colour: '#b9cbf2', strength: 0.92, glow: 'rgba(110,140,220,0.22)' },
+  // (v1.4.20) warm yellow in the near block's balcony storey, a little more vibrant than Tom's mockup
+  { block: 2, storey: 0, x: 31.55, spread: 1.6, colour: '#ffd36a', strength: 0.95, glow: 'rgba(255,190,70,0.26)' },
 ];
 
 // ---- the teahouse in plan (metres): three lines round its ground floor, each walked in the path's direction ----
