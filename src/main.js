@@ -1,11 +1,13 @@
 import { Sea, widthFor, SENS_DEG, steerToSim } from './sim.js';
 import { Bridge } from './bridge.js';
 import { Garden } from './garden.js';
+import { Street } from './lamplighter.js';
 import { createArt } from './art.js';
 import { createBridgeArt } from './bridgeart.js';
 import { createGardenArt } from './gardenart.js';
+import { createLampArt } from './lampart.js';
 import { input, tilt, setupInput, pollInput, recentreTilt, setSteerMode, requestTiltPermission } from './input.js';
-import { sfx, bridgeSfx, gardenSfx, unlock, setMuted, ambience, rain, wind } from './audio.js';
+import { sfx, bridgeSfx, gardenSfx, lampSfx, unlock, setMuted, ambience, rain, wind } from './audio.js';
 import { waveAmp, T_GONE, VH as PICTURE_H } from './ocean.js';
 import { PRINTS, cardAt, drawAlbum } from './album.js';
 import { BUILD } from './version.js';
@@ -24,10 +26,12 @@ const seed = params.has('seed') ? +params.get('seed') : Date.now();
 const sea = new Sea({ width: widthFor(aspect()), seed });
 const bridge = new Bridge({ width: widthFor(aspect()), seed: seed + 1 });
 const garden = new Garden({ width: widthFor(aspect()), seed: seed + 2 });
+const street = new Street({ width: widthFor(aspect()), seed: seed + 3 });
 const levels = {
   wave: { id: 'wave', sim: sea, art: createArt(canvas), key: 'nami.settings', sfx },
   shower: { id: 'shower', sim: bridge, art: createBridgeArt(canvas), key: 'nami.shower.settings', sfx: bridgeSfx },
   kamata: { id: 'kamata', sim: garden, art: createGardenArt(canvas), key: 'nami.kamata.settings', sfx: gardenSfx },
+  lamp: { id: 'lamp', sim: street, art: createLampArt(canvas), key: 'nami.lamp.settings', sfx: lampSfx },
 };
 const all = Object.values(levels);
 for (const L of all) {
@@ -36,7 +40,7 @@ for (const L of all) {
   L.sim.onSettings = () => save(L.key, L.sim.settings);
 }
 let cur = levels.wave;
-window.__sea = sea; window.__bridge = bridge; window.__garden = garden;      // for tests
+window.__sea = sea; window.__bridge = bridge; window.__garden = garden; window.__street = street;      // for tests
 window.__art = levels.wave.art;                     // for tests (draw a frame on demand)
 
 // ---- the album (start screen): choose a print ----
@@ -146,7 +150,7 @@ function playEvents(L) {
     const f = L.sfx[e.type];
     if (!f) continue;
     if (L === levels.wave) f(e.type === 'crest' ? e.strength : e.type === 'land' ? e.zen : e.type === 'ink' ? e.level : undefined);
-    else f(e.type === 'chime' || e.type === 'pick' || e.type === 'give' || e.type === 'stem' ? e.n : e.level);
+    else f(e.type === 'chime' || e.type === 'pick' || e.type === 'give' || e.type === 'stem' || e.type === 'light' ? e.n : e.level);
   }
 }
 
@@ -187,6 +191,11 @@ function frame(now) {
       inp.across = tiltOn ? inp.steer : inp.vert;
       inp.fingerY = !tiltOn && input.held ? pictureY(input.py) : null;
       inp.touchId = input.touches;
+    } else if (cur === levels.lamp) {
+      // the street: touch (or hold) anywhere and he walks there; arrow keys walk him too
+      inp.fingerX = input.held ? pictureX(input.px) : null;
+      inp.fingerY = input.held ? pictureY(input.py) : null;
+      inp.touchId = input.touches;
     } else {
       // the garden: hold a finger to walk, slide it left/right to step aside (keys: up to walk, left/right to step)
       inp.walk = input.held || inp.vert > 0;
@@ -203,6 +212,7 @@ function frame(now) {
     let level = 0; for (const w of sea.waves) level = Math.max(level, waveAmp(w) / 200 * (w.t < T_GONE ? 1 : 0));
     ambience(level, sea.calm / 100); rain(0); wind(0);
   } else if (cur === levels.shower) { ambience(0, 0.2); rain(bridge.paused ? 0.3 : bridge.rain); wind(0); }
+  else if (cur === levels.lamp) { ambience(0, 0.15, 0.12); rain(0); wind(0.06); }
   else { ambience(0, 0.3, 0.25); rain(0); wind(garden.paused ? 0.25 : garden.wind); }
   const b = document.body.classList;
   b.toggle('playing', !album.open && cur.sim.state !== 'title');

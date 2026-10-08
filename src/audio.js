@@ -178,6 +178,23 @@ export const gardenSfx = {
   blip() { sfx.blip(); },
 };
 
+/** The Lamplighter's sounds. */
+export const lampSfx = {
+  // a lamp catching: a soft gassy "pop", then a warm bell note that climbs a little with each lamp lit
+  light(n = 1) { noise(0.25, 0.09, 900, 200); bell(SCALE[Math.min(9, 1 + n)] / 2, 0.06, 0.12); pluck(SCALE[Math.min(9, 1 + n)], 0.07, 0.16, 2.4); },
+  // suzumushi (the bell cricket), somewhere in the dark: a few high silvery trills
+  cricket() {
+    if (!ac) return;
+    const f = 4100 + Math.random() * 500, n = 2 + Math.floor(Math.random() * 3), far = 0.4 + Math.random() * 0.6;
+    for (let i = 0; i < n; i++) whistle(f, f * 0.97, i * 0.32, 0.22, 0.007 * far);
+  },
+  bow() { bell(880, 0.08); bell(1318.5, 0.045, 0.32); },
+  ink() {},                                                                         // (each lamp makes its own sound)
+  complete() { sfx.complete(); },
+  start() { sfx.start(); },
+  blip() { sfx.blip(); },
+};
+
 /** Sudden Shower's sounds. */
 export const bridgeSfx = {
   step() { knock(130 + Math.random() * 25, 0.05); },
