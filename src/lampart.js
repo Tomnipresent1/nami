@@ -389,7 +389,7 @@ export function createLampArt(canvas) {
     ctx.save(); ctx.translate(x, y); ctx.scale(sz, sz);
     const f = o.face, stride = Math.sin(o.step * Math.PI * 2) * (o.still ? 0 : 4.5);
     if (o.sit) ctx.translate(0, 9);
-    ctx.fillStyle = 'rgba(8,8,10,0.3)'; ctx.beginPath(); ctx.ellipse(0, 1, 10, 2.4, 0, 0, Math.PI * 2); ctx.fill();
+    if (!o.noShadow) { ctx.fillStyle = 'rgba(8,8,10,0.3)'; ctx.beginPath(); ctx.ellipse(0, 1, 10, 2.4, 0, 0, Math.PI * 2); ctx.fill(); }
     ctx.strokeStyle = o.legs || SIL; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(-2, -10); ctx.lineTo(-2 + stride, 0); ctx.moveTo(2, -10); ctx.lineTo(2 - stride, 0); ctx.stroke();
     ctx.translate(0, -9); ctx.rotate(f * (0.05 + o.bow * 0.5 + (o.porter ? 0.08 : 0)));
@@ -460,7 +460,8 @@ export function createLampArt(canvas) {
     const face = screenFacing(at.x, at.z, at.dir[0] * p.face, at.dir[1] * p.face);
     const coat = lit(COAT, 0.25 + wm * 0.6);
     ctx.save(); ctx.globalAlpha = p.fade;
-    drawBody(x, y, s, { face, step: p.step, bow: Math.sin(p.nod * Math.PI) * 0.3, still: Math.abs(p.vs) < 0.05 && p.lightT <= 0,
+    // (no shadow under him, Tom v1.4.17: he is always behind the fence, and his shadow showed along its bottom)
+    drawBody(x, y, s, { face, noShadow: true, step: p.step, bow: Math.sin(p.nod * Math.PI) * 0.3, still: Math.abs(p.vs) < 0.05 && p.lightT <= 0,
       body: coat, legs: '#151518', head: mixHex('#a88a6a', SKIN, 0.4 + wm * 0.6), collar: '#d8c9a0', band: '#e8e0cc', sash: '#d8c9a0' });
     // his arm, and the pole with its small flame: carried slanting up ahead of him; to light a lantern he lifts his arm and
     // raises the pole until the flame is just under it
