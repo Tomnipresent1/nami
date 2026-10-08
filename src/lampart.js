@@ -20,9 +20,9 @@ const ROOF = '#2c3035', SOFFIT = '#121110', FASCIA = '#3a3d40';              // 
 // the teahouse's roofs (v1.4.11, Tom): a deep red, a little deeper than the lamplighter's coat, not bright or garish
 const TEA_ROOF = '#3e1d19', TEA_EDGE = '#2c1512';
 const WOOD = '#2a241f', WOOD_SIDE = '#221d19', WOOD_DARK = '#171512', POST = '#1b1815';
-const RAIL = ['#2e2822', '#6e5236'];                      // the railing's boards: dark, and warmed by a lantern
+const RAIL = ['#2e2822', '#7a3a2a'];                      // the railing's boards: dark, and warmed by a lantern
 const SHOJI = ['#2e2f2b', '#f0c98a'];                     // paper windows upstairs
-const LATTICE = ['#141210', '#d39a5a'];                   // the paper behind the ground floor's lattice
+const LATTICE = ['#141210', '#d2704c'];                   // the paper behind the ground floor's lattice
 const NOREN = ['#141a28', '#30406a'];                     // the indigo noren over the main door (deep: a paler one read as a hole to the sky)
 const GROUND = ['#3b3a34', '#211f1b'];
 const FAR_WALL = ['#24221e', '#2a2722', '#1f1d1a'], FAR_SIDE = '#1c1a17';
@@ -142,7 +142,10 @@ export function createLampArt(canvas) {
     let n = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
     if (n[1] < 0) n = n.map((v) => -v);                                                                       // (the side facing up)
     if (n[0] * (CAM.x - e0[0]) + n[1] * (CAM.y - e0[1]) + n[2] * (CAM.z - e0[2]) > 0) poly([e0, e1, r1, r0], fill);
-    poly([e0, e1, [e1[0], y - 0.22, e1[2]], [e0[0], y - 0.22, e0[2]]], edge);                                  // the eave's edge
+    poly([e0, e1, [e1[0], y - 0.22, e1[2]], [e0[0], y - 0.22, e0[2]]], edge);                                  // the eave's edge (the fascia)
+    // above it, the ends of the tiles: the roof's thickness, seen edge-on (v1.4.14, Tom: the front edge now meets the gable's edge
+    // at the corner, where it used to stop short and leave a step)
+    poly([[e0[0], y + 0.3, e0[2]], [e1[0], y + 0.3, e1[2]], e1, e0], fill);
   }
 
   // ---------- the street's other houses ----------
@@ -339,15 +342,15 @@ export function createLampArt(canvas) {
       if (!c || !f) continue;
       const [x, y, k] = c[0], a = l.glow;
       let g = ctx.createRadialGradient(x, y + 0.9 * k, 4, x, y + 0.9 * k, 3 * k);
-      g.addColorStop(0, `rgba(255,150,80,${0.16 * a})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+      g.addColorStop(0, `rgba(255,70,45,${0.2 * a})`); g.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = g; ctx.fillRect(x - 3 * k, y - 2.1 * k, 6 * k, 6 * k);
       ctx.save(); ctx.translate(f[0][0], f[0][1]); ctx.scale(1, 0.3);
       g = ctx.createRadialGradient(0, 0, 2, 0, 0, 2.6 * k);
-      g.addColorStop(0, `rgba(255,160,90,${0.16 * a})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+      g.addColorStop(0, `rgba(255,75,50,${0.2 * a})`); g.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 2.6 * k, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
       g = ctx.createRadialGradient(x, y, 3, x, y, 1.1 * k);
-      g.addColorStop(0, `rgba(255,190,120,${0.5 * a})`); g.addColorStop(0.4, `rgba(255,110,60,${0.2 * a})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+      g.addColorStop(0, `rgba(255,120,90,${0.5 * a})`); g.addColorStop(0.4, `rgba(255,45,30,${0.28 * a})`); g.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 1.1 * k, 0, Math.PI * 2); ctx.fill();
     }
     for (const w of sim.walkers) {
