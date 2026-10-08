@@ -13,8 +13,12 @@ import { pixelRatio } from './quality.js';
 // ---- the palette (after Kiyochika's "Night Stalls at Asakusa") ----
 // the sky never changes. v1.4.10 (Tom): dark at the top, a little lighter and bluer down at the roofs, as if a city glowed behind
 // the buildings; subtle. (The sky shows above the roofs, the top ~SKY_GLOW_Y of the picture.)
-const SKY_TOP = '#16191e', SKY_MID = '#252b33', SKY_GLOW = '#3a4352', SKY_GLOW_Y = 250;
-const ROOF = '#2c3035', SOFFIT = '#121110', FASCIA = '#3a3d40';
+// v1.4.11 (Tom): the glow a tiny bit stronger, and a very few small stars up in the dark
+const SKY_TOP = '#15181d', SKY_MID = '#28303b', SKY_GLOW = '#48546a', SKY_GLOW_Y = 250;
+const STARS = Array.from({ length: 11 }, (_, i) => ({ u: (i * 0.618034 + 0.07) % 1, y: 8 + ((i * 37) % 90), r: 0.6 + ((i * 13) % 5) * 0.12, tw: i * 1.7 }));
+const ROOF = '#2c3035', SOFFIT = '#121110', FASCIA = '#3a3d40';              // (the other houses along the street)
+// the teahouse's roofs (v1.4.11, Tom): a deep red, a little deeper than the lamplighter's coat, not bright or garish
+const TEA_ROOF = '#3e1d19', TEA_EDGE = '#2c1512';
 const WOOD = '#2a241f', WOOD_SIDE = '#221d19', WOOD_DARK = '#171512', POST = '#1b1815';
 const RAIL = ['#2e2822', '#6e5236'];                      // the railing's boards: dark, and warmed by a lantern
 const SHOJI = ['#2e2f2b', '#f0c98a'];                     // paper windows upstairs
@@ -113,18 +117,25 @@ export function createLampArt(canvas) {
     const g = ctx.createLinearGradient(0, 0, 0, SKY_GLOW_Y);
     g.addColorStop(0, SKY_TOP); g.addColorStop(0.45, SKY_MID); g.addColorStop(1, SKY_GLOW);
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, CAM.eye + 1);
+    // a very few small stars, high up where the sky is darkest, twinkling faintly (the buildings are drawn over them)
+    const t = lastT / 1000;
+    for (const st of STARS) {
+      ctx.globalAlpha = 0.45 + 0.25 * Math.sin(t * 0.9 + st.tw);
+      ctx.fillStyle = '#d8dce8'; ctx.beginPath(); ctx.arc(st.u * W, st.y, st.r, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
     const gg = ctx.createLinearGradient(0, CAM.eye, 0, VH);
     gg.addColorStop(0, GROUND[0]); gg.addColorStop(1, GROUND[1]);
     ctx.fillStyle = gg; ctx.fillRect(0, CAM.eye, W, VH - CAM.eye);
   }
 
   // ---------- a pitched roof: its overhanging eave along the front (we see its underside), its tiled slope rising back ----------
-  function roofAlong(p, q, out, y, overhang, depthBack, fill = ROOF) {
+  function roofAlong(p, q, out, y, overhang, depthBack, fill = ROOF, edge = FASCIA) {
     const ox = out[0] * overhang, oz = out[1] * overhang, bx = -out[0] * depthBack, bz = -out[1] * depthBack;
     const e0 = [p[0] + ox, y, p[1] + oz], e1 = [q[0] + ox, y, q[1] + oz];
     poly([e0, e1, [q[0], y, q[1]], [p[0], y, p[1]]], SOFFIT);                                                   // the eave's underside
     poly([e0, e1, [q[0] + bx * 0.5, y + depthBack * 0.36, q[1] + bz * 0.5], [p[0] + bx * 0.5, y + depthBack * 0.36, p[1] + bz * 0.5]], fill);   // the tiled slope (where it shows)
-    poly([e0, e1, [e1[0], y - 0.22, e1[2]], [e0[0], y - 0.22, e0[2]]], FASCIA);                                // the eave's edge
+    poly([e0, e1, [e1[0], y - 0.22, e1[2]], [e0[0], y - 0.22, e0[2]]], edge);                                  // the eave's edge
   }
 
   // ---------- the street's other houses ----------
@@ -187,9 +198,9 @@ export function createLampArt(canvas) {
         ctx.strokeStyle = WOOD_DARK; ctx.lineWidth = 1; ctx.beginPath();
         for (let yy = y0 + 0.85; yy < y1 - 0.1; yy += 0.35) line([fp[0], yy, fp[1] - 0.02], [fq[0], yy, fq[1] - 0.02]);
         ctx.stroke();
-        if (k < b.storeys - 1) roofAlong(p, q, out, y1 + 0.3, 0.7, 1.2);                       // a little roof between storeys
+        if (k < b.storeys - 1) roofAlong(p, q, out, y1 + 0.3, 0.7, 1.2, TEA_ROOF, TEA_EDGE);   // a little roof between storeys
       }
-      roofAlong(p, q, out, FLOOR1 + b.storeys * STOREY, 0.8, b.depth * 0.5);
+      roofAlong(p, q, out, FLOOR1 + b.storeys * STOREY, 0.8, b.depth * 0.5, TEA_ROOF, TEA_EDGE);
     }
   }
   /** People upstairs and the balcony rails in front of them (the lowest storey of each block has a balcony over the walkway). */
@@ -231,7 +242,7 @@ export function createLampArt(canvas) {
       const r0 = RAIL_LINE[i], r1 = RAIL_LINE[i + 1], w0 = WALL_LINE[i], w1 = WALL_LINE[i + 1];
       poly([[r0[0], BEAM_H, r0[1]], [r1[0], BEAM_H, r1[1]], [w1[0], BEAM_H + 0.5, w1[1]], [w0[0], BEAM_H + 0.5, w0[1]]], SOFFIT);
     }
-    pieces(RAIL_LINE, 2, (p, q, out) => { if (facing(p, q, out)) poly(wallQuad([p[0] + out[0] * 0.05, p[1] + out[1] * 0.05], [q[0] + out[0] * 0.05, q[1] + out[1] * 0.05], BEAM_H - 0.22, BEAM_H + 0.05), FASCIA); });
+    pieces(RAIL_LINE, 2, (p, q, out) => { if (facing(p, q, out)) poly(wallQuad([p[0] + out[0] * 0.05, p[1] + out[1] * 0.05], [q[0] + out[0] * 0.05, q[1] + out[1] * 0.05], BEAM_H - 0.22, BEAM_H + 0.05), TEA_EDGE); });
   }
   /** The walkway's near things, each with its depth so they can be drawn back to front with the people: the railing in short
    *  stretches, the posts, the lanterns. */
@@ -268,8 +279,8 @@ export function createLampArt(canvas) {
         pts.push([x, y, gz]);
       }
       const top = pts, bottom = [[ENTRANCE_X + half, BEAM_H - 0.15, gz], [ENTRANCE_X - half, BEAM_H - 0.15, gz]];
-      poly([...top, ...bottom], ROOF);
-      ctx.strokeStyle = FASCIA; ctx.lineWidth = 3; ctx.beginPath(); for (let j = 0; j < n; j++) line(top[j], top[j + 1]); ctx.stroke();
+      poly([...top, ...bottom], TEA_ROOF);
+      ctx.strokeStyle = TEA_EDGE; ctx.lineWidth = 3; ctx.beginPath(); for (let j = 0; j < n; j++) line(top[j], top[j + 1]); ctx.stroke();
       const wm = warmAt(ENTRANCE_X, gz);
       const c = proj([[ENTRANCE_X, BEAM_H + 0.45, gz - 0.02]]); if (c) { ctx.fillStyle = mixHex('#3d3428', '#c9a46a', wm * 0.6); ctx.beginPath(); ctx.ellipse(c[0][0], c[0][1], 0.28 * c[0][2], 0.18 * c[0][2], 0, 0, Math.PI * 2); ctx.fill(); }
     } });
