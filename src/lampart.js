@@ -11,7 +11,9 @@ import { BUILD } from './version.js';
 import { pixelRatio } from './quality.js';
 
 // ---- the palette (after Kiyochika's "Night Stalls at Asakusa") ----
-const SKY_TOP = '#1f2225', SKY_LOW = '#55564e';           // (the sky never changes)
+// the sky never changes. v1.4.10 (Tom): dark at the top, a little lighter and bluer down at the roofs, as if a city glowed behind
+// the buildings; subtle. (The sky shows above the roofs, the top ~SKY_GLOW_Y of the picture.)
+const SKY_TOP = '#16191e', SKY_MID = '#252b33', SKY_GLOW = '#3a4352', SKY_GLOW_Y = 250;
 const ROOF = '#2c3035', SOFFIT = '#121110', FASCIA = '#3a3d40';
 const WOOD = '#2a241f', WOOD_SIDE = '#221d19', WOOD_DARK = '#171512', POST = '#1b1815';
 const RAIL = ['#2e2822', '#6e5236'];                      // the railing's boards: dark, and warmed by a lantern
@@ -108,8 +110,8 @@ export function createLampArt(canvas) {
 
   // ---------- sky and ground ----------
   function drawSkyGround() {
-    const g = ctx.createLinearGradient(0, 0, 0, CAM.eye);
-    g.addColorStop(0, SKY_TOP); g.addColorStop(0.75, '#3a3c37'); g.addColorStop(1, SKY_LOW);
+    const g = ctx.createLinearGradient(0, 0, 0, SKY_GLOW_Y);
+    g.addColorStop(0, SKY_TOP); g.addColorStop(0.45, SKY_MID); g.addColorStop(1, SKY_GLOW);
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, CAM.eye + 1);
     const gg = ctx.createLinearGradient(0, CAM.eye, 0, VH);
     gg.addColorStop(0, GROUND[0]); gg.addColorStop(1, GROUND[1]);
