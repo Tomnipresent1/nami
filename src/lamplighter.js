@@ -20,9 +20,10 @@ import { readChoice } from './choice.js';
 // v1.4.7 (Tom): every screen shows the SAME view, the one a 975-wide picture gets (his first screenshot: intimate, the player in the
 // scene from the start, close to the left). A wider screen zooms in on it (a little roof and sky trimmed off the top) rather than
 // showing more of the street on the left. refW: that reference width; right: where the view's centre sits, from its right edge.
-// v1.4.8 (Tom, research 28-29): the camera stepped back from the building and the view slid along it, so the recess (the main door)
-// is in the centre, the first lanterns at the very left, and on the right the near block's walkway where he comes back out.
-export const CAM = { x: 27, y: 1.6, z: -18, lookX: 23.5, lookZ: 6, F: 550, eye: 440, right: 487.5, refW: 975 };
+// v1.4.9 (Tom: "screenshot one, go for it", research 28 = his Photoshop frame): the v1.4.7 camera, close and looking along the fronts
+// (dynamic, with progression), its frame slid along to the right: the first lanterns at the very left, the recess in the middle, and
+// on the right the near block coming toward you with its lanterns, where he comes back out.
+export const CAM = { x: 28, y: 1.6, z: -14.5, lookX: 10, lookZ: 6, F: 600, eye: 440, right: 935, refW: 975 };
 const CAMF = (() => { const dx = CAM.lookX - CAM.x, dz = CAM.lookZ - CAM.z, d = Math.hypot(dx, dz); return [dx / d, dz / d]; })();
 /** Camera space: [across (right +), up, depth] for world point X, Y, Z. */
 export function toCam(X, Y, Z) {
@@ -41,7 +42,7 @@ export const B = 30;
 export const RECESS = 4;
 export const WALKWAY = 2;                    // the walkway's width, railing to the lattice wall
 // the path along the middle of the walkway: from the back, along the left block, in, along the recess, out, and on off the picture
-export const PATH = [[8, 1], [A + 1, 1], [A + 1, RECESS + 1], [B - 1, RECESS + 1], [B - 1, 1], [70, 1]];
+export const PATH = [[13.5, 1], [A + 1, 1], [A + 1, RECESS + 1], [B - 1, RECESS + 1], [B - 1, 1], [70, 1]];
 const SEGS = PATH.slice(1).map((p, i) => { const q = PATH[i], len = Math.hypot(p[0] - q[0], p[1] - q[1]); return { q, p, len, dir: [(p[0] - q[0]) / len, (p[1] - q[1]) / len] }; });
 SEGS.reduce((s, g) => { g.s0 = s; return s + g.len; }, 0);
 export const PATH_LEN = SEGS.reduce((s, g) => s + g.len, 0);
@@ -52,9 +53,10 @@ export function pathAt(s) {
   return { x: g.q[0] + g.dir[0] * t, z: g.q[1] + g.dir[1] * t, dir: g.dir, out: [g.dir[1], -g.dir[0]] };
 }
 
-// thirteen lanterns along the way, hanging from the beam over the railing (by distance along the path): four along the left block,
+// twelve lanterns along the way, hanging from the beam over the railing (by distance along the path): three along the left block,
 // one where the walkway turns in, four along the recess (one at the main door), one where it turns out, three along the near block
-export const LANTERNS = [1, 3.5, 6, 8.5, 12.6, 16.8, 18.9, 21, 23.1, 27.4, 32, 34.5, 37].map((s) => ({ s }));
+// (close together: the near block comes toward you, so they spread out across the picture, as in Tom's frame)
+export const LANTERNS = [0.7, 2.7, 4.5, 7.1, 11.5, 13.5, 15.5, 17.5, 21.9, 23.9, 25.1, 26.3].map((s) => ({ s }));
 export const ENTRANCE_X = (A + B) / 2;       // the main door, in the recess, under its curved gable
 // heights (metres): the walkway roof's front beam, a lantern, the railing
 export const BEAM_H = 2.9;
@@ -69,8 +71,8 @@ export const LTUNE = {
   walkSpeed: 1.1,          // metres per second: an unhurried walk
   start: 10, stop: 18,     // how quickly he gets going, and stops when the finger lifts (quick: nothing slippy, Tom)
   turn: 16,                // slide the finger back this far (picture units) the other way and he turns round
-  reach: 0.9,              // how close (metres along the path) he must be to a lantern's spot for the LIGHT button to show
-  standOff: 0.5,           // he stands just short of it to light it
+  reach: 0.5,              // how close (metres along the path) he must be to a lantern's spot for the LIGHT button to show
+  standOff: 0.4,           // he stands just short of it to light it
   lightSecs: 2.8,
   catchAt: 1.45,
   glowSecs: 1.4,
@@ -88,9 +90,10 @@ export function exitS(W) {
   return (exitCache[W] = s);
 }
 
-// the LIGHT button: round, like Plum Blossom's GATHER (centre x, centre y, radius). Taps are generous. Bottom CENTRE here (v1.4.8): he
-// starts at the bottom left and leaves at the bottom right, so a button in either corner would cover him; below the recess he never is
-export const lightButton = (W) => [W / 2, 600 - 58, 52];
+// the LIGHT button: round, like Plum Blossom's GATHER (centre x, centre y, radius). Taps are generous. TOP RIGHT here (v1.4.9): his walk
+// runs right along the bottom of the picture (in at the left, past the door in the middle, out at the right), so up here, over the
+// near block's top storey, it never covers him
+export const lightButton = (W) => [W - 92, 100, 54];
 export const onLightButton = (x, y, W) => { const [cx, cy, r] = lightButton(W); return Math.hypot(x - cx, y - cy) < r + 22; };
 
 export const LAMP_PAUSE_ROWS = ['resume', 'album', 'sound', 'restart'];
