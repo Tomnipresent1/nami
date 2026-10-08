@@ -547,11 +547,14 @@ export function createLampArt(canvas) {
     drawWalls();
     drawWalkwayRoof();
     drawWash(sim);
-    // the walkway's railing, posts and lanterns, and him: back to front
+    // him first: he is always inside the fence, so every piece of railing you can see (and the posts and lanterns over it) is in
+    // front of him. (v1.4.16: sorting him in with the railing's 1 m pieces by distance sometimes put a piece beside him behind him,
+    // and a sliver of his legs and shadow showed along the bottom of the fence as he walked, Tom.)
+    sim.flameAt = null;
+    if (sim.state !== 'title') drawPlayer(sim, time);
+    // then the walkway's railing, posts and lanterns, back to front
     const items = [];
     walkwayItems(sim, time, items);
-    sim.flameAt = null;
-    if (sim.state !== 'title') { const at = pathAt(sim.player.s); items.push({ d: depthOf(at.x, 0.9, at.z), f: () => drawPlayer(sim, time) }); }
     items.sort((a, b) => b.d - a.d);
     for (const it of items) it.f();
     for (const w of street) if (w.x >= -3) drawStreetWalker(w);
