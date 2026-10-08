@@ -4,7 +4,10 @@ import { VH, clamp, smooth } from './ocean.js';
 import { PAUSE_Y0, PAUSE_DY, SENS_OPTS, SENS_DEG } from './sim.js';
 import { choiceBox } from './choice.js';
 
-export const PAPER = '#efe4c6', INK = '#16213b', SEAL = '#b3342b', MUTED = '#4a5470';
+export const PAPER = '#efe4c6';
+export const INK = '#16213b';
+export const SEAL = '#b3342b';
+export const MUTED = '#4a5470';
 export const FONT = "Georgia, 'Times New Roman', serif";
 
 export const mixHex = (a, b, t) => {

@@ -1,63 +1,91 @@
 // THE LAMPLIGHTER (print 4, Meiji Tokyo at night; colour after Kiyochika's "Night Stalls at Asakusa"; the building after a Meiji
-// photograph of a big wooden teahouse on a corner (research 17)): the rules. One screen. The teahouse's front recedes gently to the
-// left; along its ground floor runs a covered walkway behind a low railing, red paper lanterns hanging from its front beam. You are
-// the lamplighter: you start at the far corner, inside the walkway, and walk toward the right (hold a finger and he walks toward
-// it, let go and he stops), lighting the lanterns as you pass (the LIGHT button); walk off the right edge and the evening is over.
+// photograph of a big wooden teahouse (research 17)): the rules. One screen. You are the lamplighter, walking the covered walkway
+// that runs round the teahouse's ground floor behind a low railing, lighting the red paper lanterns that hang from its front beam
+// (the LIGHT button); hold a finger and he walks, slide it back and he turns round, let go and he stops. He comes from the back,
+// along the left-hand block; the teahouse's middle is set back (Tom's plan view, research 27), so the walkway turns in, runs along
+// the recess past the main door, turns out again and carries on off the right of the picture: then the evening is over.
 // It is a process, not a goal (Tom): light as many as you like; light them all and the print is complete.
-// The sky never changes: the only change of light is the lanterns. Gentle life upstairs on the balcony, people along the street.
+// The sky never changes: the only change of light is the lanterns. Life upstairs on the balconies, people along the street.
 // Pure logic: no drawing, no sound, no DOM. tools/selftest.mjs plays it with a bot.
 //
-// The view (v1.4.5, Tom: "build the structure and perspective as we have it in the photo"): true perspective. Positions along the
-// building are DEPTH z (0 = the right edge of the picture, bigger = further away along the street). A thing at depth z is drawn at
-// scale k(z) = D / (D + z), toward a vanishing point just off the left edge at eye level (HORIZON, low, as in the photo): so he
-// grows to about twice his size walking from the start (left of the main door) to the right edge. y0 = how far down the picture
-// something is at scale 1 (at the right edge).
+// v1.4.6: a real 3-D scene (Tom: "abandon all notions of orthographic space"). The world is in metres: X along the street (bigger =
+// nearer the right of the picture), Y up, Z away from the street into the buildings (the main fronts' railing line is Z = 0). A
+// camera stands in the street (CAM) and projects it; everything gets real depth and real sides.
 import { clamp } from './ocean.js';
 import { MIN_W, MAX_W, PAUSE_Y0, PAUSE_DY } from './sim.js';
 import { readChoice } from './choice.js';
 
-export const VIEW = { D: 1000, ZC: 960, HORIZON: 470 };   // ZC: the walkway's far (left) end, where he starts
-export const EXIT_Z = -24;                  // walk this far (off the right edge) and the evening is over
-const VPX = (W) => -0.3 * W;                 // the vanishing point, just off the left edge
-/** How big things are at depth z. */
-export const scaleAt = (z) => VIEW.D / (VIEW.D + z);
-/** Where depth z is across the picture. */
-export const zToX = (z, W) => VPX(W) + (W - VPX(W)) * scaleAt(z);
-/** Which depth is at picture x. */
-export const xToZ = (x, W) => { const k = (x - VPX(W)) / (W - VPX(W)); return k > 0.05 ? VIEW.D / k - VIEW.D : 1e6; };
-/** Where something y0 down the picture (at scale 1) is, at depth z. */
-export const yAt = (z, y0) => VIEW.HORIZON + (y0 - VIEW.HORIZON) * scaleAt(z);
+// ---- the camera: standing in the street, looking along the fronts toward the far end (verticals stay upright: a level camera,
+// with its picture shifted so the eye level sits low, as in the photo) ----
+export const CAM = { x: 28, y: 1.6, z: -14.5, lookX: 10, lookZ: 6, F: 600, eye: 440, right: 640 };   // right: where the view's centre sits, from the RIGHT edge
+const CAMF = (() => { const dx = CAM.lookX - CAM.x, dz = CAM.lookZ - CAM.z, d = Math.hypot(dx, dz); return [dx / d, dz / d]; })();
+/** Camera space: [across (right +), up, depth] for world point X, Y, Z. */
+export function toCam(X, Y, Z) {
+  const qx = X - CAM.x, qz = Z - CAM.z;
+  return [qx * CAMF[1] - qz * CAMF[0], Y - CAM.y, qx * CAMF[0] + qz * CAMF[1]];
+}
+/** Picture position [x, y] and size factor (picture units per metre) of camera-space point c, on a picture W wide. */
+export const fromCam = (c, W) => { const k = CAM.F / c[2]; return [W - CAM.right + c[0] * k, CAM.eye - c[1] * k, k]; };
+/** Picture position [x, y, k] of world point X, Y, Z (only for points in front of the camera). */
+export const project = (X, Y, Z, W) => fromCam(toCam(X, Y, Z), W);
 
-// ---- the walkway, top to bottom (y0: at scale 1) ----
-export const BEAM_Y = 300;                   // the walkway roof's front beam: the lanterns hang from it
-export const LANTERN_Y = 336;
-export const WALK_Y = 596;                   // where his feet are, inside the walkway
-export const RAIL_Y = [545, 612];            // the low railing between the walkway and the street (top, foot): about waist high on him
-export const STREET_Y = 630;                 // people walking along the street (near you, their feet run off the bottom)
-export const BALCONY_Y = 250;                // people upstairs, on the balcony
+// ---- the teahouse, in plan (metres) ----
+// the set-back middle runs from X = A to X = B, RECESS metres back from the main fronts (one export per line: the bundler needs it)
+export const A = 18;
+export const B = 30;
+export const RECESS = 4;
+export const WALKWAY = 2;                    // the walkway's width, railing to the lattice wall
+// the path along the middle of the walkway: from the back, along the left block, in, along the recess, out, and on off the picture
+export const PATH = [[8, 1], [A + 1, 1], [A + 1, RECESS + 1], [B - 1, RECESS + 1], [B - 1, 1], [70, 1]];
+const SEGS = PATH.slice(1).map((p, i) => { const q = PATH[i], len = Math.hypot(p[0] - q[0], p[1] - q[1]); return { q, p, len, dir: [(p[0] - q[0]) / len, (p[1] - q[1]) / len] }; });
+SEGS.reduce((s, g) => { g.s0 = s; return s + g.len; }, 0);
+export const PATH_LEN = SEGS.reduce((s, g) => s + g.len, 0);
+/** Where distance s along the path is: { x, z, dir, out } (out = toward the railing, the open side). */
+export function pathAt(s) {
+  s = clamp(s, 0, PATH_LEN);
+  const g = SEGS.find((q) => s <= q.s0 + q.len) || SEGS[SEGS.length - 1], t = s - g.s0;
+  return { x: g.q[0] + g.dir[0] * t, z: g.q[1] + g.dir[1] * t, dir: g.dir, out: [g.dir[1], -g.dir[0]] };
+}
 
-// twelve lanterns along the walkway, the first just past the corner
-export const LANTERNS = Array.from({ length: 12 }, (_, i) => ({ z: VIEW.ZC - 50 - i * 80 }));
-export const ENTRANCE_Z = 700;               // the main door, under its curved gable (he passes it early on)
+// ten lanterns along the way, hanging from the beam over the railing (by distance along the path): four along the left block, one
+// where the walkway turns in, four along the recess (one at the main door), one where it turns out (the last stretch is out of view)
+export const LANTERNS = [1, 3.5, 6, 8.5, 12.6, 16.8, 18.9, 21, 23.1, 27.4].map((s) => ({ s }));
+export const ENTRANCE_X = (A + B) / 2;       // the main door, in the recess, under its curved gable
+// heights (metres): the walkway roof's front beam, a lantern, the railing
+export const BEAM_H = 2.9;
+export const LANTERN_H = 2.45;
+export const RAIL_H = 0.9;
+/** Where lantern l hangs (world): over the railing, beside the path. */
+export function lanternAt(l) { const p = pathAt(l.s); return [p.x + p.out[0] * 1, LANTERN_H, p.z + p.out[1] * 1]; }
+// people walking along the street: two lanes, in front of the teahouse
+export const LANES = { street: -3.2, far: -6.2 };
 
 export const LTUNE = {
-  walkSpeed: 30,           // depth units per second: an unhurried walk (on screen, quicker as he comes nearer)
-  turn: 16,                // slide the finger back this far (picture units) the other way and he turns round
+  walkSpeed: 1.1,          // metres per second: an unhurried walk
   start: 10, stop: 18,     // how quickly he gets going, and stops when the finger lifts (quick: nothing slippy, Tom)
-  reach: 22,               // how close (in depth) he must be to a lantern's spot for the LIGHT button to show
-  standOff: 12,            // he stands just behind it (a little to its left) to light it
+  turn: 16,                // slide the finger back this far (picture units) the other way and he turns round
+  reach: 0.9,              // how close (metres along the path) he must be to a lantern's spot for the LIGHT button to show
+  standOff: 0.5,           // he stands just short of it to light it
   lightSecs: 2.8,
   catchAt: 1.45,
   glowSecs: 1.4,
-  endWait: 1.6,            // after he walks off the right edge, a moment before "the evening is over"
   walkers: { street: 5, balcony: 4 },
-  nodNear: 30,             // people in the street nod as they pass you this close (they never stop you)
+  nodNear: 3,              // people in the street nod as they pass you this close (metres; they never stop you)
 };
-/** The depth he stands at to light lantern l. */
-export const lightSpot = (l) => l.z + LTUNE.standOff;
+/** Where (along the path) he stands to light lantern l. */
+export const lightSpot = (l) => l.s - LTUNE.standOff;
+/** How far along the path he must walk to be off the right of a picture W wide (it depends on the picture's width). */
+const exitCache = {};
+export function exitS(W) {
+  if (exitCache[W]) return exitCache[W];
+  let s = SEGS[SEGS.length - 1].s0;
+  while (s < PATH_LEN) { const p = pathAt(s), c = toCam(p.x, 0, p.z); if (c[2] < 1 || fromCam(c, W)[0] > W + 45) break; s += 0.1; }
+  return (exitCache[W] = s);
+}
 
-// the LIGHT button: round, bottom right, like Plum Blossom's GATHER (centre x, centre y, radius). Taps are generous.
-export const lightButton = (W) => [W - 100, 600 - 100, 62];
+// the LIGHT button: round, like Plum Blossom's GATHER (centre x, centre y, radius). Taps are generous. Bottom LEFT here (v1.4.6): his
+// path ends at the bottom right, where he comes out of the recess, and a button there would cover him
+export const lightButton = (W) => [96, 600 - 92, 60];
 export const onLightButton = (x, y, W) => { const [cx, cy, r] = lightButton(W); return Math.hypot(x - cx, y - cy) < r + 22; };
 
 export const LAMP_PAUSE_ROWS = ['resume', 'album', 'sound', 'restart'];
@@ -65,6 +93,8 @@ export const DONE_CHOICES = ['WALK AGAIN', 'BACK TO THE ALBUM'];
 export const DONE_WAIT = 4;                  // the finished print shows on its own for a moment first
 export const EVENING_WAIT = 1.4;             // (a shorter wait when the evening is simply over)
 const KINDS = { street: ['plain', 'lantern', 'porter', 'bundle', 'lantern', 'rickshaw', 'plain'], balcony: ['sit', 'sit', 'stand', 'stroll'] };
+// the balconies people stand on: [from X, to X, Z of the balcony floor's middle]
+export const BALCONIES = [[-1, A + 1.2, 0.55], [A + 2.2, B - 2.2, RECESS + 0.55], [B - 1.2, 40, 0.55]];
 
 function mulberry32(a) {
   return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -102,17 +132,19 @@ export class Street {
     for (let i = 0; i < LTUNE.walkers.street; i++) this.spawnWalker('street', true);
     for (let i = 0; i < LTUNE.walkers.balcony; i++) this.spawnWalker('balcony', true);
   }
-  /** A new evening: the lanterns are out (any old glow fades), and he starts again at the corner. */
+  /** A new evening: the lanterns are out (any old glow fades), and he starts again at the back. */
   newEvening() {
     const old = this.lanterns;
     this.lanterns = LANTERNS.map((l, i) => ({ ...l, lit: false, glow: old ? old[i].glow : 0 }));
-    this.player = { z: VIEW.ZC - 10, vz: 0, face: 1, step: 0, lightT: 0, lantern: -1, raise: 0, fade: 0, nod: 0 };
+    this.player = { s: 0, vs: 0, face: 1, step: 0, lightT: 0, lantern: -1, raise: 0, fade: 0, nod: 0 };
     this.drag = null;                // the touch now steering (a touch that began on the LIGHT button is left alone)
     this.reachable = -1;             // the unlit lantern within reach (the LIGHT button shows), or -1
-    this.ink = 0; this.endT = 0; this.allLitSaid = false;
+    this.ink = 0;
   }
   lightAll() { for (const l of this.lanterns) { l.lit = true; l.glow = 1; } }
   get litCount() { return this.lanterns.filter((l) => l.lit).length; }
+  /** Where he is in the picture: [x, y, k]. */
+  playerScreen() { const p = pathAt(this.player.s); return project(p.x, 0, p.z, this.W); }
 
   say(type, data = {}) { this.events.push({ type, ...data }); }
   msg(text, secs = 3.5) { this.message = { text, t: secs, total: secs }; }
@@ -166,7 +198,7 @@ export class Street {
       return;
     }
     if (this.state === 'complete' || this.state === 'evening') {
-      // he has walked off the right edge: the street carries on while you choose what next
+      // he has walked off the right of the picture: the street carries on while you choose what next
       this.completeT += dt;
       this.stepWorld(dt, {}, false);
       if (this.completeT < (this.state === 'complete' ? DONE_WAIT : EVENING_WAIT)) return;
@@ -205,9 +237,9 @@ export class Street {
       // each new touch: one that lands on the LIGHT button (while it shows, or while he is lighting) never walks him
       if (inp.fingerX != null) {
         if (!this.drag || this.drag.id !== inp.touchId) {
-          // a new touch: he heads toward the side of him the finger landed on
+          // a new touch: on his right he walks on (toward the end of the path), on his left he walks back
           this.drag = { id: inp.touchId, button: (this.reachable >= 0 || p.lightT > 0) && onLightButton(inp.fingerX, inp.fingerY ?? 0, this.W),
-            dir: inp.fingerX >= zToX(p.z, this.W) ? 1 : -1, ext: inp.fingerX };
+            dir: inp.fingerX >= this.playerScreen()[0] ? 1 : -1, ext: inp.fingerX };
         }
         // slide the finger back the other way (even a little) and he turns round: back along the same path (Tom, v1.4.5)
         const d = this.drag;
@@ -218,8 +250,8 @@ export class Street {
         // lighting: a step into place under the lantern, raise the pole, it catches, lower the pole again
         const l = this.lanterns[p.lantern], before = p.lightT;
         p.lightT -= dt;
-        const e = T.lightSecs - p.lightT, sz = lightSpot(l);
-        if (p.z !== sz) { const mv = clamp(sz - p.z, -T.walkSpeed * dt, T.walkSpeed * dt); p.z += mv; p.step += Math.abs(mv) / 9; }
+        const e = T.lightSecs - p.lightT, ss = lightSpot(l);
+        if (p.s !== ss) { const mv = clamp(ss - p.s, -T.walkSpeed * dt, T.walkSpeed * dt); p.s += mv; p.step += Math.abs(mv) / 0.7; }
         p.face = 1;
         p.raise = e < 0.4 ? 0 : e < 1.2 ? smooth01((e - 0.4) / 0.8) : e < 1.75 ? 1 : smooth01(1 - (e - 1.75) / (T.lightSecs - 1.75));
         if (T.lightSecs - before < T.catchAt && e >= T.catchAt && !l.lit) {
@@ -229,47 +261,48 @@ export class Street {
           if (scoring && this.litCount === this.lanterns.length) this.msg('EVERY LANTERN IS LIT', 4);
         }
         if (p.lightT <= 0) { p.lightT = 0; p.raise = 0; p.lantern = -1; }
-        p.vz = 0;
+        p.vs = 0;
       } else if (playing) {
-        // hold a finger and he walks (toward the side it landed on, or whichever way it last slid); let go and he stops.
-        // Right on screen = toward you = less depth. The arrow keys walk him too.
-        if (inp.fingerX != null) { if (!this.drag.button) want = -this.drag.dir * T.walkSpeed; }
-        else want = -clamp(inp.steer || 0, -1, 1) * T.walkSpeed;
+        // hold a finger and he walks (on, or back, by which side of him it landed, or whichever way it last slid); let go and he
+        // stops. The arrow keys walk him too (right = on).
+        if (inp.fingerX != null) { if (!this.drag.button) want = this.drag.dir * T.walkSpeed; }
+        else want = clamp(inp.steer || 0, -1, 1) * T.walkSpeed;
       }
       if (p.lightT <= 0) {
-        p.vz += (want - p.vz) * Math.min(1, dt * (Math.abs(want) > Math.abs(p.vz) ? T.start : T.stop));
-        if (!want && Math.abs(p.vz) < 0.5) p.vz = 0;
-        p.z = Math.min(VIEW.ZC - 10, p.z + p.vz * dt);
-        if (p.z === VIEW.ZC - 10 && p.vz > 0) p.vz = 0;
-        if (Math.abs(p.vz) > 0.8) p.face = p.vz < 0 ? 1 : -1;
-        p.step += Math.abs(p.vz) * dt / 9;
+        p.vs += (want - p.vs) * Math.min(1, dt * (Math.abs(want) > Math.abs(p.vs) ? T.start : T.stop));
+        if (!want && Math.abs(p.vs) < 0.03) p.vs = 0;
+        p.s = Math.max(0, p.s + p.vs * dt);
+        if (p.s === 0 && p.vs < 0) p.vs = 0;
+        if (Math.abs(p.vs) > 0.05) p.face = p.vs > 0 ? 1 : -1;
+        p.step += Math.abs(p.vs) * dt / 0.7;
       }
 
       // which unlit lantern is within reach: the LIGHT button shows while there is one
       this.reachable = -1;
       if (playing && p.lightT <= 0) {
         let best = T.reach;
-        this.lanterns.forEach((l, i) => { if (!l.lit) { const d = Math.abs(p.z - lightSpot(l)); if (d < best) { best = d; this.reachable = i; } } });
+        this.lanterns.forEach((l, i) => { if (!l.lit) { const d = Math.abs(p.s - lightSpot(l)); if (d < best) { best = d; this.reachable = i; } } });
         if (this.reachable >= 0 && scoring && !this.hinted) { this.hinted = true; this.msg('TAP THE GLOWING BUTTON TO LIGHT THE LANTERN', 5); }
       }
 
-      // walked off the right edge: the evening is over (the print is complete if every lantern is lit)
-      if (playing && p.z <= EXIT_Z) {
-        p.vz = 0; this.reachable = -1; this.completeT = 0; this.choice = 0; this.stats.evenings++; this.message = null;
+      // walked off the right of the picture: the evening is over (the print is complete if every lantern is lit)
+      if (playing && p.s >= exitS(this.W)) {
+        p.vs = 0; this.reachable = -1; this.completeT = 0; this.choice = 0; this.stats.evenings++; this.message = null;
         if (this.litCount === this.lanterns.length) { this.state = 'complete'; this.stats.rounds++; this.say('complete'); }
         else { this.state = 'evening'; this.say('arrived'); }
       }
     }
 
-    // ---- the passers-by: along the street (they nod as they pass you), and gentle life on the balcony upstairs ----
+    // ---- the passers-by: along the street (they nod as they pass you), and gentle life on the balconies upstairs ----
+    const pp = pathAt(p.s);
     for (const w of this.walkers) {
       w.nod = Math.max(0, w.nod - dt / 1.2);
       w.swing = Math.sin(this.t * 2.2 + w.phase);
       if (w.wait > 0) { w.wait -= dt; continue; }
       if (w.lane === 'balcony') { this.stepBalcony(w, dt); continue; }
-      w.z += w.dir * w.speed * dt;
-      w.step += w.speed * dt / 9;
-      if (this.state === 'play' && !w.nodded && w.kind !== 'rickshaw' && Math.abs(w.z - p.z) < T.nodNear) {
+      w.x += w.dir * w.speed * dt;
+      w.step += w.speed * dt / 0.7;
+      if (this.state === 'play' && !w.nodded && w.kind !== 'rickshaw' && Math.hypot(w.x - pp.x, w.z - pp.z) < T.nodNear) {
         w.nodded = true; w.nod = 1; p.nod = 1; this.stats.nods++;
         if (scoring) this.say('bow');
       }
@@ -277,36 +310,45 @@ export class Street {
     p.nod = Math.max(0, p.nod - dt / 1.2);
     for (let i = 0; i < this.walkers.length; i++) {
       const w = this.walkers[i];
-      if (w.lane === 'street' && (w.z > 3200 || w.z < -260)) { this.walkers.splice(i, 1); i--; this.spawnWalker('street', false); }
+      if (w.lane !== 'balcony' && (w.x > 52 || w.x < -170)) { this.walkers.splice(i, 1); i--; this.spawnWalker('street', false); }
     }
     this.inkShown += (this.ink - this.inkShown) * Math.min(1, dt * 1.6);
   }
 
   /** Upstairs: people sit and look out, fan themselves, turn to each other; now and then one strolls a little way along. */
   stepBalcony(w, dt) {
-    const r = this.rand;
+    const r = this.rand, [x0, x1] = BALCONIES[w.balcony];
     w.headT -= dt;
     if (w.headT <= 0) { w.head = w.head ? 0 : (r() < 0.5 ? -1 : 1); w.headT = 2 + r() * 5; }
-    if (w.kind === 'stroll' || w.goZ != null) {
-      if (w.goZ == null) w.goZ = clamp(w.z + (r() - 0.5) * 240, 30, VIEW.ZC - 30);
-      const dz = w.goZ - w.z;
-      if (Math.abs(dz) < 1) { w.goZ = null; w.wait = 4 + r() * 8; w.kind = r() < 0.5 ? 'stand' : 'stroll'; }
-      else { const mv = Math.sign(dz) * Math.min(Math.abs(dz), 10 * dt); w.z += mv; w.dir = dz > 0 ? 1 : -1; w.step += Math.abs(mv) / 9; }
-    } else if (r() < dt / 25) w.goZ = clamp(w.z + (r() - 0.5) * 160, 30, VIEW.ZC - 30);     // (even the ones sitting get up now and then)
+    if (w.kind === 'stroll' || w.goX != null) {
+      if (w.goX == null) w.goX = clamp(w.x + (r() - 0.5) * 6, x0 + 0.5, x1 - 0.5);
+      const dx = w.goX - w.x;
+      if (Math.abs(dx) < 0.05) { w.goX = null; w.wait = 4 + r() * 8; w.kind = r() < 0.5 ? 'stand' : 'stroll'; }
+      else { const mv = Math.sign(dx) * Math.min(Math.abs(dx), 0.6 * dt); w.x += mv; w.dir = dx > 0 ? 1 : -1; w.step += Math.abs(mv) / 0.7; }
+    } else if (r() < dt / 25) w.goX = clamp(w.x + (r() - 0.5) * 4, x0 + 0.5, x1 - 0.5);     // (even the ones sitting get up now and then)
   }
 
-  /** Someone sets off along the street (from the far end, beyond the corner, or from the right), or takes a place upstairs. */
+  /** Someone sets off along the street (from the far end, or from behind you on the right), or takes a place on a balcony. */
   spawnWalker(lane, already) {
     const r = this.rand, kinds = KINDS[lane];
     let kind = kinds[Math.floor(r() * kinds.length)];
     if (kind === 'rickshaw' && this.walkers.some((w) => w.kind === 'rickshaw')) kind = 'lantern';      // (one rickshaw at a time)
     const dir = r() < 0.5 ? 1 : -1;
-    const z = lane === 'balcony' ? 40 + r() * (VIEW.ZC - 80) : already ? r() * 2000 : dir > 0 ? -250 : 3100;
-    this.walkers.push({ lane, kind, dir, z, speed: kind === 'rickshaw' ? 60 + r() * 10 : 22 + r() * 10, step: r() * 4, phase: r() * 6, swing: 0,
-      wait: already || lane === 'balcony' ? r() * 3 : 2 + r() * 8, nod: 0, nodded: false, head: 0, headT: r() * 4, goZ: null,
+    const w = { lane, kind, dir, step: r() * 4, phase: r() * 6, swing: 0, nod: 0, nodded: false, head: 0, headT: r() * 4, goX: null,
+      wait: already || lane === 'balcony' ? r() * 3 : 2 + r() * 8,
       // plain working clothes: a muted colour, sometimes striped or checked, sometimes a head cloth or an apron
       robe: Math.floor(r() * 8), pattern: r() < 0.3 ? 'stripe' : r() < 0.45 ? 'check' : '', cloth: lane === 'street' && r() < 0.35, apron: lane === 'street' && r() < 0.25,
-      fan: lane === 'balcony' && r() < 0.5 });
+      fan: lane === 'balcony' && r() < 0.5 };
+    if (lane === 'balcony') {
+      w.balcony = Math.floor(r() * BALCONIES.length);
+      const [x0, x1, z] = BALCONIES[w.balcony];
+      w.x = x0 + 0.5 + r() * (x1 - x0 - 1); w.z = z; w.speed = 0;
+    } else {
+      w.z = r() < 0.55 ? LANES.street : LANES.far; w.z += (r() - 0.5) * 0.8;
+      w.x = already ? -40 + r() * 80 : dir > 0 ? -165 : 50;
+      w.speed = kind === 'rickshaw' ? 2.6 + r() * 0.4 : 0.9 + r() * 0.5;
+    }
+    this.walkers.push(w);
   }
 
   addInk(v) {
