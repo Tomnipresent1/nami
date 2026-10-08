@@ -380,29 +380,6 @@ export function createLampArt(canvas) {
     if (x < -150 || x > W + 150) return;
     const sz = (k * PERSON_H) / BODY_UNITS, wm = clamp(warmAt(w.x, w.z) * 0.6, 0, 1), show = 0.3 + 0.7 * wm, dim = (cc) => mixHex(SIL, cc, show);
     const body = dim(ROBES[w.robe]), head = mixHex('#2a2522', SKIN, 0.2 + wm * 0.7), face = screenFacing(w.x, w.z, w.dir, 0);
-    if (w.kind === 'rickshaw') {
-      const r = sz * 1.06;
-      ctx.save(); ctx.translate(x, y); ctx.scale(r, r);
-      const d = face, cx = -d * 40, wr = 28;
-      ctx.strokeStyle = SIL; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(d * 8, -50); ctx.lineTo(cx, -44); ctx.stroke();
-      ctx.fillStyle = dim('#3a3330');
-      ctx.beginPath(); ctx.moveTo(cx - 28, -40); ctx.lineTo(cx + 24, -40); ctx.lineTo(cx - d * 14, -106);
-      ctx.quadraticCurveTo(cx - d * 48, -108, cx - d * 36, -42); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = head; ctx.beginPath(); ctx.arc(cx - d * 6, -76, 7, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#111113'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, -wr, wr, 0, Math.PI * 2); ctx.stroke();
-      ctx.lineWidth = 1.2; ctx.beginPath();
-      const turn = w.x * 1.2;
-      for (let j = 0; j < 6; j++) { const a = turn + (j * Math.PI) / 6; ctx.moveTo(cx - Math.cos(a) * wr, -wr - Math.sin(a) * wr); ctx.lineTo(cx + Math.cos(a) * wr, -wr + Math.sin(a) * wr); }
-      ctx.stroke();
-      ctx.fillStyle = '#e0553a'; ctx.beginPath(); ctx.ellipse(cx + d * 22, -52, 6.5, 8.5, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.restore();
-      w.lanternAt = [x + (cx + d * 22) * r, y - 52 * r, k];
-      ctx.save(); ctx.translate(x, y); ctx.rotate(d * 0.22); ctx.translate(-x, -y);
-      drawBody(x, y, sz, { face: d, step: w.step, bow: 0, body, head, cloth: dim('#8a8a80') });
-      ctx.restore();
-      return;
-    }
     drawBody(x, y, sz, { face, step: w.step, bow: Math.sin(w.nod * Math.PI) * 0.35, body, head, knot: SIL, pattern: w.pattern, cloth: w.cloth ? dim('#9a9a8e') : null,
       apron: w.apron ? dim('#26304a') : null, porter: w.kind === 'porter' ? dim('#6b5a3c') : null, bundle: w.kind === 'bundle' ? dim('#4d5a6a') : null });
     if (w.kind === 'lantern') {

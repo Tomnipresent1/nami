@@ -20,7 +20,9 @@ import { readChoice } from './choice.js';
 // v1.4.7 (Tom): every screen shows the SAME view, the one a 975-wide picture gets (his first screenshot: intimate, the player in the
 // scene from the start, close to the left). A wider screen zooms in on it (a little roof and sky trimmed off the top) rather than
 // showing more of the street on the left. refW: that reference width; right: where the view's centre sits, from its right edge.
-export const CAM = { x: 28, y: 1.6, z: -14.5, lookX: 10, lookZ: 6, F: 600, eye: 440, right: 640, refW: 975 };
+// v1.4.8 (Tom, research 28-29): the camera stepped back from the building and the view slid along it, so the recess (the main door)
+// is in the centre, the first lanterns at the very left, and on the right the near block's walkway where he comes back out.
+export const CAM = { x: 27, y: 1.6, z: -18, lookX: 23.5, lookZ: 6, F: 550, eye: 440, right: 487.5, refW: 975 };
 const CAMF = (() => { const dx = CAM.lookX - CAM.x, dz = CAM.lookZ - CAM.z, d = Math.hypot(dx, dz); return [dx / d, dz / d]; })();
 /** Camera space: [across (right +), up, depth] for world point X, Y, Z. */
 export function toCam(X, Y, Z) {
@@ -50,9 +52,9 @@ export function pathAt(s) {
   return { x: g.q[0] + g.dir[0] * t, z: g.q[1] + g.dir[1] * t, dir: g.dir, out: [g.dir[1], -g.dir[0]] };
 }
 
-// ten lanterns along the way, hanging from the beam over the railing (by distance along the path): four along the left block, one
-// where the walkway turns in, four along the recess (one at the main door), one where it turns out (the last stretch is out of view)
-export const LANTERNS = [1, 3.5, 6, 8.5, 12.6, 16.8, 18.9, 21, 23.1, 27.4].map((s) => ({ s }));
+// thirteen lanterns along the way, hanging from the beam over the railing (by distance along the path): four along the left block,
+// one where the walkway turns in, four along the recess (one at the main door), one where it turns out, three along the near block
+export const LANTERNS = [1, 3.5, 6, 8.5, 12.6, 16.8, 18.9, 21, 23.1, 27.4, 32, 34.5, 37].map((s) => ({ s }));
 export const ENTRANCE_X = (A + B) / 2;       // the main door, in the recess, under its curved gable
 // heights (metres): the walkway roof's front beam, a lantern, the railing
 export const BEAM_H = 2.9;
@@ -86,16 +88,17 @@ export function exitS(W) {
   return (exitCache[W] = s);
 }
 
-// the LIGHT button: round, like Plum Blossom's GATHER (centre x, centre y, radius). Taps are generous. Bottom LEFT here (v1.4.6): his
-// path ends at the bottom right, where he comes out of the recess, and a button there would cover him
-export const lightButton = (W) => [96, 600 - 92, 60];
+// the LIGHT button: round, like Plum Blossom's GATHER (centre x, centre y, radius). Taps are generous. Bottom CENTRE here (v1.4.8): he
+// starts at the bottom left and leaves at the bottom right, so a button in either corner would cover him; below the recess he never is
+export const lightButton = (W) => [W / 2, 600 - 58, 52];
 export const onLightButton = (x, y, W) => { const [cx, cy, r] = lightButton(W); return Math.hypot(x - cx, y - cy) < r + 22; };
 
 export const LAMP_PAUSE_ROWS = ['resume', 'album', 'sound', 'restart'];
 export const DONE_CHOICES = ['WALK AGAIN', 'BACK TO THE ALBUM'];
 export const DONE_WAIT = 4;                  // the finished print shows on its own for a moment first
 export const EVENING_WAIT = 1.4;             // (a shorter wait when the evening is simply over)
-const KINDS = { street: ['plain', 'lantern', 'porter', 'bundle', 'lantern', 'rickshaw', 'plain'], balcony: ['sit', 'sit', 'stand', 'stroll'] };
+const KINDS = { street: ['plain', 'lantern', 'porter', 'bundle', 'lantern', 'plain'],      // (no rickshaw, Tom v1.4.8: it looked out of scale)
+  balcony: ['sit', 'sit', 'stand', 'stroll'] };
 // the balconies people stand on: [from X, to X, Z of the balcony floor's middle]
 export const BALCONIES = [[-1, A + 1.2, 0.55], [A + 2.2, B - 2.2, RECESS + 0.55], [B - 1.2, 40, 0.55]];
 
@@ -305,7 +308,7 @@ export class Street {
       if (w.lane === 'balcony') { this.stepBalcony(w, dt); continue; }
       w.x += w.dir * w.speed * dt;
       w.step += w.speed * dt / 0.7;
-      if (this.state === 'play' && !w.nodded && w.kind !== 'rickshaw' && Math.hypot(w.x - pp.x, w.z - pp.z) < T.nodNear) {
+      if (this.state === 'play' && !w.nodded && Math.hypot(w.x - pp.x, w.z - pp.z) < T.nodNear) {
         w.nodded = true; w.nod = 1; p.nod = 1; this.stats.nods++;
         if (scoring) this.say('bow');
       }
@@ -334,8 +337,7 @@ export class Street {
   /** Someone sets off along the street (from the far end, or from behind you on the right), or takes a place on a balcony. */
   spawnWalker(lane, already) {
     const r = this.rand, kinds = KINDS[lane];
-    let kind = kinds[Math.floor(r() * kinds.length)];
-    if (kind === 'rickshaw' && this.walkers.some((w) => w.kind === 'rickshaw')) kind = 'lantern';      // (one rickshaw at a time)
+    const kind = kinds[Math.floor(r() * kinds.length)];
     const dir = r() < 0.5 ? 1 : -1;
     const w = { lane, kind, dir, step: r() * 4, phase: r() * 6, swing: 0, nod: 0, nodded: false, head: 0, headT: r() * 4, goX: null,
       wait: already || lane === 'balcony' ? r() * 3 : 2 + r() * 8,
@@ -349,7 +351,7 @@ export class Street {
     } else {
       w.z = r() < 0.55 ? LANES.street : LANES.far; w.z += (r() - 0.5) * 0.8;
       w.x = already ? -40 + r() * 80 : dir > 0 ? -165 : 50;
-      w.speed = kind === 'rickshaw' ? 2.6 + r() * 0.4 : 0.9 + r() * 0.5;
+      w.speed = 0.9 + r() * 0.5;
     }
     this.walkers.push(w);
   }
