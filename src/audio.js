@@ -179,9 +179,12 @@ export const gardenSfx = {
 };
 
 // ---- music in the distance (The Lamplighter, Tom v1.4.28): somewhere a few streets away a shamisen plays a lively little tune and
-// a drum keeps time now and then; here you only just hear it, muffled by the houses, echoing a little, coming and going on the air.
+// a drum keeps time now and then; here you only just hear it, muffled by the houses, echoing a little, coming and going on the air:
+// mostly very faint, then now and then the air carries it a little nearer and it LINGERS there a while, so you notice it (v1.4.29).
 // FAR_MUSIC = how loud it is overall (Tom to judge on the phone).
 const FAR_MUSIC = 0.5;
+const FAR_LOW = 0.4;                                   // how faint it is most of the time (1 = at its nearest)
+const FAR_SWELL = [3, 9, 5];                           // a swell: seconds rising, lingering near, fading back
 const MIYAKO = [329.63, 349.23, 440, 493.88, 523.25, 659.25, 698.46];   // the miyako-bushi scale (E F A B C), the city's festival sound
 let far = null;
 function farBus() {
@@ -191,10 +194,9 @@ function farBus() {
   const dl = ac.createDelay(1), fb = ac.createGain(), wet = ac.createGain();                                  // a little echo off the walls
   dl.delayTime.value = 0.27; fb.gain.value = 0.32; wet.gain.value = 0.45;
   const g = ac.createGain(); g.gain.value = 0;
-  const sway = ac.createOscillator(), swayG = ac.createGain(), air = ac.createGain();                         // coming and going on the air
-  sway.frequency.value = 0.045; swayG.gain.value = 0.35; air.gain.value = 0.65; sway.connect(swayG); swayG.connect(air.gain); sway.start();
+  const air = ac.createGain(); air.gain.value = FAR_LOW;                                                      // coming and going on the air
   lp.connect(hp); hp.connect(g); hp.connect(dl); dl.connect(fb); fb.connect(dl); dl.connect(wet); wet.connect(g); g.connect(air); air.connect(master);
-  far = { input: lp, g, next: 0, phrase: [] };
+  far = { input: lp, g, air, next: 0, phrase: [], swellAt: ac.currentTime + 6 };
   return far;
 }
 function farNote(freq, t, vol) {                       // a shamisen-ish pluck: bright and quick to die
@@ -215,6 +217,12 @@ export function distantMusic(level) {
   const f = farBus(), now = ac.currentTime;
   f.g.gain.setTargetAtTime(level * FAR_MUSIC, now, 0.8);
   if (level <= 0) { f.next = Math.max(f.next, now + 1); return; }
+  if (now >= f.swellAt) {
+    const [up, hold, down] = FAR_SWELL, a = f.air.gain;
+    a.cancelScheduledValues(now); a.setValueAtTime(a.value, now);
+    a.linearRampToValueAtTime(1, now + up); a.setValueAtTime(1, now + up + hold); a.linearRampToValueAtTime(FAR_LOW, now + up + hold + down);
+    f.swellAt = now + up + hold + down + 12 + Math.random() * 14;
+  }
   if (f.next > now + 0.25) return;
   if (!f.phrase.length) {
     // a new phrase after a rest: 10-18 notes stepping round the scale, a few repeated, a beat of 0.24 s

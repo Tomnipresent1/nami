@@ -112,6 +112,7 @@ export const onLightButton = (x, y, W) => { const [cx, cy, r] = lightButton(W); 
 
 export const LAMP_PAUSE_ROWS = ['resume', 'album', 'sound', 'restart'];
 export const DONE_CHOICES = ['WALK AGAIN', 'BACK TO THE ALBUM'];
+export const FINISH_SECS = 4.5;               // from the last lantern catching to THE LAMPLIGHTER / COMPLETE
 export const DONE_WAIT = 4;                  // the finished print shows on its own for a moment first
 export const EVENING_WAIT = 1.4;             // (a shorter wait when the evening is simply over)
 const KINDS = { street: ['plain', 'lantern', 'porter', 'bundle', 'lantern', 'plain'],      // (no rickshaw, Tom v1.4.8: it looked out of scale)
@@ -163,11 +164,12 @@ export class Street {
     this.drag = null;                // the touch now steering (a touch that began on the LIGHT button is left alone)
     this.reachable = -1;             // the unlit lantern within reach (the LIGHT button shows), or -1
     this.ink = 0;
-    // two faint shooting stars cross the sky each evening (Tom v1.4.28): when (seconds into the evening), where, which way
+    this.finishT = null;             // counting up once the last lantern is lit: then the print is complete (Tom v1.4.29)
+    // three faint shooting stars cross the sky each evening (Tom v1.4.28; three from v1.4.29): when (seconds into the evening), where, which way
     const r = this.rand;
     this.eveT = 0;
     // (the open sky is between the left block's roof and the near block, about 0.2 to 0.6 of the width across)
-    this.meteors = [12 + r() * 10, 42 + r() * 14].map((at) => { const dir = r() < 0.5 ? 1 : -1; return { at, dir, u: (dir > 0 ? 0.2 : 0.43) + r() * 0.15, y: 20 + r() * 50, slope: 0.3 + r() * 0.25 }; });
+    this.meteors = [10 + r() * 8, 28 + r() * 10, 48 + r() * 12].map((at) => { const dir = r() < 0.5 ? 1 : -1; return { at, dir, u: (dir > 0 ? 0.2 : 0.43) + r() * 0.15, y: 20 + r() * 50, slope: 0.3 + r() * 0.25 }; });
   }
   lightAll() { for (const l of this.lanterns) { l.lit = true; l.glow = 1; } }
   get litCount() { return this.lanterns.filter((l) => l.lit).length; }
@@ -236,6 +238,17 @@ export class Street {
       else if (r.chosen === 1) { this.state = 'title'; this.lightAll(); this.albumRequest = true; this.say('blip'); }   // the street waits in the album, lit
       return;
     }
+    // the last lantern is lit: that is the end (Tom v1.4.29: he no longer has to walk off). He finishes lowering his pole and stands
+    // while 'ALL THE LAMPS ARE LIT' shows and fades, then THE LAMPLIGHTER / COMPLETE
+    if (this.finishT != null) {
+      this.finishT += dt;
+      this.stepWorld(dt, {}, true);
+      if (this.finishT >= FINISH_SECS && this.player.lightT <= 0) {
+        const p = this.player; p.vs = 0; this.reachable = -1; this.completeT = 0; this.choice = 0; this.message = null; this.finishT = null;
+        this.stats.evenings++; this.state = 'complete'; this.stats.rounds++; this.say('complete');
+      }
+      return;
+    }
     // the LIGHT button (or Enter / Space)
     if (keys.includes('enter') || taps.some((t) => onLightButton(t.x, t.y, this.W))) this.startLight();
     this.stepWorld(dt, inp, true);
@@ -296,7 +309,7 @@ export class Street {
           l.lit = true; this.stats.lit++;
           if (scoring) { this.addInk(100 / this.lanterns.length); this.say('light', { n: this.litCount }); }
           if (scoring && this.litCount === 1) this.msg('THE FIRST LANTERN IS LIT', 3);
-          if (scoring && this.litCount === this.lanterns.length) this.msg('EVERY LANTERN IS LIT', 4);
+          if (scoring && this.litCount === this.lanterns.length) { this.msg('ALL THE LAMPS ARE LIT', FINISH_SECS - 0.5); this.finishT = 0; }
         }
         if (p.lightT <= 0) { p.lightT = 0; p.raise = 0; p.lantern = -1; }
         p.vs = 0;
