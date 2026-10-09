@@ -47,6 +47,8 @@ const UPPER_LIGHTS = [
   { block: 2, storey: 0, x: 31.55, spread: 1.6, colour: '#ffd36a', strength: 0.95, glow: 'rgba(255,190,70,0.26)' },
   // (v1.4.22) orange in the left block's top storey, brightest by its corner over the recess (where Tom's arrow points)
   { block: 0, storey: 1, x: 18.9, spread: 1.6, colour: '#ff9348', strength: 0.9, glow: 'rgba(255,120,40,0.24)' },
+  // (v1.4.23) orange in the near block's top storey too, brightest right above the yellow (Tom's screenshot, research 38)
+  { block: 2, storey: 1, x: 31.55, spread: 1.6, colour: '#ff9348', strength: 0.9, glow: 'rgba(255,120,40,0.24)' },
   // (v1.4.21) red in the recess's storey, brightest over the main door
   { block: 1, storey: 0, x: 24.25, spread: 1.7, colour: '#f2604a', strength: 0.88, glow: 'rgba(255,70,50,0.24)' },
 ];
