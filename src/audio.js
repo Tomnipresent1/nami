@@ -225,7 +225,7 @@ export function distantMusic(level) {
     const [up, hold, down] = FAR_SWELL, a = f.air.gain;
     a.cancelScheduledValues(now); a.setValueAtTime(a.value, now);
     a.linearRampToValueAtTime(1, now + up); a.setValueAtTime(1, now + up + hold); a.linearRampToValueAtTime(FAR_LOW, now + up + hold + down);
-    f.swellAt = now + up + hold + down + 10 + Math.random() * 12;
+    f.swellAt = now + up + hold + down + 7 + Math.random() * 12;     // (gaps 3 s shorter, Tom v1.4.32)
     // the phrase: notes stepping round the scale, a few held, a beat of 0.24 s, filling the time it is near
     f.phrase = []; let i = 2 + Math.floor(Math.random() * 3), secs = 0, k = 0;
     while (secs < up + hold - 0.6) {
