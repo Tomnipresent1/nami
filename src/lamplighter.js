@@ -53,6 +53,18 @@ export function pathAt(s) {
   return { x: g.q[0] + g.dir[0] * t, z: g.q[1] + g.dir[1] * t, dir: g.dir, out: [g.dir[1], -g.dir[0]] };
 }
 
+/** How much faster he walks at distance s along the path, so he crosses the PICTURE at an even rate all the way (Tom v1.4.25):
+ *  walking into or out of the recess he heads away from or toward you and barely moves on screen, so there he goes as fast as
+ *  he'd cross the picture walking along the street at that spot (up to LTUNE.maxPace). 1 along the fronts. */
+export function paceAt(s) {
+  const p = pathAt(s);
+  if (!p.dir[1]) return 1;
+  const W = CAM.refW, e = 0.05, at = project(p.x, 0.9, p.z, W);
+  const d = (q) => Math.hypot(q[0] - at[0], q[1] - at[1]);
+  const along = d(project(p.x + p.dir[0] * e, 0.9, p.z + p.dir[1] * e, W)), across = d(project(p.x + e, 0.9, p.z, W));
+  return clamp(across / Math.max(along, 1e-6), 1, LTUNE.maxPace);
+}
+
 // twelve lanterns along the way, hanging from the beam over the railing (by distance along the path): three along the left block,
 // one where the walkway turns in, four along the recess (one at the main door), one where it turns out, three along the near block
 // (close together: the near block comes toward you, so they spread out across the picture, as in Tom's frame)
@@ -69,6 +81,7 @@ export const LANES = { street: -3.2, far: -6.2 };
 
 export const LTUNE = {
   walkSpeed: 1.1,          // metres per second: an unhurried walk
+  maxPace: 5,              // on the turns in and out of the recess he walks up to this much faster (paceAt; Tom v1.4.25)
   start: 10, stop: 18,     // how quickly he gets going, and stops when the finger lifts (quick: nothing slippy, Tom)
   turn: 16,                // slide the finger back this far (picture units) the other way and he turns round
   reach: 0.5,              // how close (metres along the path) he must be to a lantern's spot for the LIGHT button to show
@@ -92,7 +105,7 @@ export function exitS(W) {
 
 // the LIGHT button: round, like Plum Blossom's GATHER (centre x, centre y, radius). Taps are generous. Low down, a little right of
 // centre, at the foot of the post on the near block's corner (v1.4.23, Tom's screenshot, research 38; it was bottom left)
-export const lightButton = (W) => [Math.round(W * 0.54), 600 - 62, 54];   // (v1.4.24: pulled a little left, Tom)
+export const lightButton = (W) => [Math.round(W * 0.69), 600 - 62, 54];   // (v1.4.25: right of the corner post, Tom; same size)
 export const onLightButton = (x, y, W) => { const [cx, cy, r] = lightButton(W); return Math.hypot(x - cx, y - cy) < r + 22; };
 
 export const LAMP_PAUSE_ROWS = ['resume', 'album', 'sound', 'restart'];
@@ -259,7 +272,7 @@ export class Street {
         const l = this.lanterns[p.lantern], before = p.lightT;
         p.lightT -= dt;
         const e = T.lightSecs - p.lightT, ss = lightSpot(l);
-        if (p.s !== ss) { const mv = clamp(ss - p.s, -T.walkSpeed * dt, T.walkSpeed * dt); p.s += mv; p.step += Math.abs(mv) / 0.7; }
+        if (p.s !== ss) { const mv = clamp(ss - p.s, -T.walkSpeed * paceAt(p.s) * dt, T.walkSpeed * paceAt(p.s) * dt); p.s += mv; p.step += Math.abs(mv) / 0.7; }
         p.face = 1;
         p.raise = e < 0.4 ? 0 : e < 1.2 ? smooth01((e - 0.4) / 0.8) : e < 1.75 ? 1 : smooth01(1 - (e - 1.75) / (T.lightSecs - 1.75));
         if (T.lightSecs - before < T.catchAt && e >= T.catchAt && !l.lit) {
@@ -279,7 +292,7 @@ export class Street {
       if (p.lightT <= 0) {
         p.vs += (want - p.vs) * Math.min(1, dt * (Math.abs(want) > Math.abs(p.vs) ? T.start : T.stop));
         if (!want && Math.abs(p.vs) < 0.03) p.vs = 0;
-        p.s = Math.max(0, p.s + p.vs * dt);
+        p.s = Math.max(0, p.s + p.vs * paceAt(p.s) * dt);   // (an even pace across the picture, round the turns too)
         if (p.s === 0 && p.vs < 0) p.vs = 0;
         if (Math.abs(p.vs) > 0.05) p.face = p.vs > 0 ? 1 : -1;
         p.step += Math.abs(p.vs) * dt / 0.7;

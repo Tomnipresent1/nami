@@ -142,9 +142,14 @@ export function createLampArt(canvas) {
       ctx.fillStyle = '#d8dce8'; ctx.beginPath(); ctx.arc(st.u * W, st.y, st.r, 0, Math.PI * 2); ctx.fill();
     }
     ctx.globalAlpha = 1;
+    ctx.fillStyle = groundFill(); ctx.fillRect(0, CAM.eye, W, VH - CAM.eye);
+  }
+
+  /** The street's colour: dark warm red-brown, a touch darker toward you (Tom's mockup, research 39). */
+  function groundFill() {
     const gg = ctx.createLinearGradient(0, CAM.eye, 0, VH);
     gg.addColorStop(0, GROUND[0]); gg.addColorStop(1, GROUND[1]);
-    ctx.fillStyle = gg; ctx.fillRect(0, CAM.eye, W, VH - CAM.eye);
+    return gg;
   }
 
   // ---------- a pitched roof: its overhanging eave along the front (we see its underside), its tiled slope rising back ----------
@@ -288,8 +293,8 @@ export function createLampArt(canvas) {
       line([p[0] + out[0] * 0.01, 1.6, p[1] + out[1] * 0.01], [q[0] + out[0] * 0.01, 1.6, q[1] + out[1] * 0.01]);
       ctx.stroke();
     });
-    // the walkway's floor, and the forecourt in front of the recess
-    poly([[A + 2, 0.01, 0], [B - 2, 0.01, 0], [B - 2, 0.01, RECESS], [A + 2, 0.01, RECESS]], '#2c2a25');
+    // the forecourt in front of the recess: the same street as everywhere else (v1.4.25, Tom: it was grey)
+    poly([[A + 2, 0.01, 0], [B - 2, 0.01, 0], [B - 2, 0.01, RECESS], [A + 2, 0.01, RECESS]], groundFill());
   }
   /** The walkway's roof seen from below (between the beam over the railing and the lattice wall) and the beam's face. */
   function drawWalkwayRoof() {
