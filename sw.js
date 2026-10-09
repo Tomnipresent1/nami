@@ -1,7 +1,7 @@
 // Offline cache. Bump VERSION whenever the game files change so phones fetch the new ones.
-const VERSION = 'nami-v1.4.32';
+const VERSION = 'nami-v1.5.1';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png',
-  './src/main.js', './src/version.js', './src/album.js', './src/ui.js', './src/choice.js', './src/bridge.js', './src/bridgeart.js', './src/garden.js', './src/gardenart.js', './src/lamplighter.js', './src/lampart.js', './src/sim.js', './src/ocean.js', './src/art.js', './src/audio.js', './src/input.js', './src/tilt.js', './src/waveshape.js', './src/quality.js'];
+  './src/main.js', './src/version.js', './src/album.js', './src/ui.js', './src/choice.js', './src/bridge.js', './src/bridgeart.js', './src/garden.js', './src/gardenart.js', './src/lamplighter.js', './src/lampart.js', './src/river.js', './src/riverart.js', './src/sim.js', './src/ocean.js', './src/art.js', './src/audio.js', './src/input.js', './src/tilt.js', './src/waveshape.js', './src/quality.js'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(VERSION).then((c) => Promise.all(FILES.map((f) => c.add(f).catch(() => {})))).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== VERSION).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', (e) => {

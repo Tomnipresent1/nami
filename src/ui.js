@@ -41,15 +41,15 @@ export function createUI(canvas) {
     ctx.fillStyle = color; ctx.fillText(str, x, y);
     if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
   }
-  /** Paper grain over everything + a warm vignette. */
-  function paperGrain(W) {
+  /** Paper grain over everything + a warm vignette. (H: a portrait print's own height) */
+  function paperGrain(W, H = VH) {
     ctx.save();
     ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = 0.22; ctx.fillStyle = grainPattern;
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.restore();
     ctx.restore();
-    const g = ctx.createRadialGradient(W / 2, VH / 2, VH * 0.45, W / 2, VH / 2, W * 0.62);
+    const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.45, W / 2, H / 2, Math.max(W, H) * 0.62);
     g.addColorStop(0, 'rgba(120,80,30,0)'); g.addColorStop(1, 'rgba(120,80,30,0.22)');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, VH);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   }
   function seal(x, y, s = 1) {
     ctx.save(); ctx.translate(x, y); ctx.rotate(-0.06); ctx.scale(s, s);

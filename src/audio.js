@@ -278,6 +278,19 @@ export const bridgeSfx = {
   blip() { sfx.blip(); },
 };
 
+// THE RIVER (print 5): a wooden knock when rafts touch, a pluck as you slip past one, a rustle in the reeds, a thump as the
+// raft meets the landing, and a rising note for each box handed up
+export const riverSfx = {
+  bump() { knock(120, 0.09); bell(880, 0.06, 0.15); },
+  pass() { if (!ac) return; const now = ac.currentTime; if (now - lastPluck < 0.8) return; lastPluck = now; pluck(SCALE[Math.floor(Math.random() * 7)], 0.06, 0, 1.8); },
+  reed() { noise(0.6, 0.06, 2400, 900); },
+  dock() { knock(95, 0.11); [0, 2, 4].forEach((i, k) => pluck(SCALE[i], 0.08, 0.25 + k * 0.16, 2.2)); },
+  unload(n = 1) { knock(140, 0.06); pluck(SCALE[2 + n * 2], 0.08, 0.5, 2.4); },
+  complete() { sfx.complete(); },
+  start() { sfx.start(); },
+  blip() { sfx.blip(); },
+};
+
 export const sfx = {
   crest(strength = 0.5) {
     if (!ac) return; const now = ac.currentTime; if (now - lastPluck < 0.9) return; lastPluck = now;

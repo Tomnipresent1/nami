@@ -19,11 +19,12 @@
   #rotate { display: none; position: fixed; inset: 0; z-index: 9; background: #efe4c6; color: #16213b; text-align: center; font: bold 20px/1.5 Georgia, serif; align-items: center; justify-content: center; flex-direction: column; }
   #rotate .ico { font-size: 64px; display: inline-block; animation: tilt 1.6s ease-in-out infinite; }
   @keyframes tilt { 0%, 30% { transform: rotate(0); } 70%, 100% { transform: rotate(-90deg); } }
-  body.portrait.touchdev #rotate { display: flex; }
+  #rotate.up .ico { animation-direction: reverse; }
+  body.wrongway #rotate { display: flex; }
 </style>
 </head>
 <body>
-<div id="rotate"><div class="ico">📱</div><div>TURN YOUR PHONE SIDEWAYS<br>to sail NAMI</div></div>
+<div id="rotate"><div class="ico">📱</div><div id="rotatemsg">TURN YOUR PHONE SIDEWAYS<br>to sail NAMI</div></div>
 <canvas id="screen"></canvas>
 <button id="fs" class="tbtn" aria-label="Fullscreen">⛶</button>
 <button id="pausebtn" class="tbtn" aria-label="Pause">❚❚</button>
