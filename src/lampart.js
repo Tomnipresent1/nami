@@ -25,7 +25,7 @@ const RAIL = ['#2e2822', '#5c2d23'];                      // the railing's board
 const SHOJI = ['#2e2f2b', '#f0c98a'];                     // paper windows upstairs
 const LATTICE = ['#141210', '#d2704c'];                   // the paper behind the ground floor's lattice
 const NOREN = ['#141a28', '#30406a'];                     // the indigo noren over the main door (deep: a paler one read as a hole to the sky)
-const GROUND = ['#3b3a34', '#211f1b'];
+const GROUND = ['#2b170b', '#200f06'];                    // the street: a dark, warm red-brown (v1.4.24, Tom's mockup, research 39)
 const FAR_WALL = ['#24221e', '#2a2722', '#1f1d1a'], FAR_SIDE = '#1c1a17';
 const SIL = '#17181b';
 const ROBES = ['#3b4458', '#5a4a3a', '#4a4a46', '#3d4a3c', '#6a5532', '#2f3a4f', '#5b4e45', '#47505a'];

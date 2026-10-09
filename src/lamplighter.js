@@ -92,7 +92,7 @@ export function exitS(W) {
 
 // the LIGHT button: round, like Plum Blossom's GATHER (centre x, centre y, radius). Taps are generous. Low down, a little right of
 // centre, at the foot of the post on the near block's corner (v1.4.23, Tom's screenshot, research 38; it was bottom left)
-export const lightButton = (W) => [Math.round(W * 0.6), 600 - 62, 54];
+export const lightButton = (W) => [Math.round(W * 0.54), 600 - 62, 54];   // (v1.4.24: pulled a little left, Tom)
 export const onLightButton = (x, y, W) => { const [cx, cy, r] = lightButton(W); return Math.hypot(x - cx, y - cy) < r + 22; };
 
 export const LAMP_PAUSE_ROWS = ['resume', 'album', 'sound', 'restart'];
