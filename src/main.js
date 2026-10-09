@@ -87,12 +87,15 @@ function drawAlbumScreen(now) {
   const tw = 480, th = Math.max(1, Math.round((tw * canvas.height) / Math.max(1, canvas.width)));
   albumTurn = (albumTurn + 1) % all.length;
   all.forEach((L, i) => {
-    const c0 = thumbs[L.id];
-    if (c0 && c0.width === tw && c0.height === th && i !== albumTurn) return;
+    const c0 = thumbs[L.id], [w, h] = L.portrait ? [300, 450] : [tw, th];
+    if (c0 && c0.width === w && c0.height === h && i !== albumTurn) return;
     L.art.draw(L.sim, { bare: true }, now);
     const c = thumbs[L.id] || (thumbs[L.id] = document.createElement('canvas'));
-    if (c.width !== tw || c.height !== th) { c.width = tw; c.height = th; }
-    c.getContext('2d').drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, tw, th);
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    if (L.portrait) {      // an upright print: a 2:3 piece of the picture, from a little way down (the river's bend and the rafts)
+      const [x, y, pw, ph] = L.art.pictureRect(), sh = Math.min(ph, pw * 1.5), sy = y + Math.min(ph - sh, ph * 0.12);
+      c.getContext('2d').drawImage(canvas, x, sy, pw, sh, 0, 0, w, h);
+    } else c.getContext('2d').drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, w, h);
   });
   levels.wave.art.paper();
   const info = {};

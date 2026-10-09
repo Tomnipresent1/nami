@@ -3,7 +3,7 @@
 // the temple roofs up in the trees, timber rafts poled down the stream, a ferry crossing, pines and a willow on the near bank.
 // The picture is RIVER_W wide and sim.H tall; on a sideways screen (the PC, or the album card) it sits upright in the middle.
 import { clamp } from './ocean.js';
-import { RIVER_W, RTUNE, REEDS, REED_S, REED_D, FERRY_S, RIVER_PAUSE_ROWS, DONE_CHOICES, DONE_WAIT, frame, riverPoint, scaleAt,
+import { RIVER_W, RTUNE, REEDS, REED_S, REED_D, FERRY_S, SHOW_FERRY, RIVER_PAUSE_ROWS, DONE_CHOICES, DONE_WAIT, frame, riverPoint, scaleAt,
   pauseRowY, doneButton, unloadButton } from './river.js';
 import { createUI, inked, PAPER, INK, MUTED, SEAL } from './ui.js';
 import { BUILD } from './version.js';
@@ -328,7 +328,7 @@ export function createRiverArt(canvas) {
     drawReeds(ink);
     // everything on the water, furthest (highest up the picture) first
     const things = sim.others.map((o) => ({ s: o.s, f: () => raft(o.s, o.d, o.len, o.pole, ROBES[Math.floor(o.phase) % ROBES.length]) }));
-    things.push({ s: FERRY_S, f: () => ferry(sim.ferry) });
+    if (SHOW_FERRY) things.push({ s: FERRY_S, f: () => ferry(sim.ferry) });
     if (sim.state !== 'title') things.push({ s: sim.player.s, f: () => raft(sim.player.s, sim.player.d, 1.05, sim.player.pole, YOU, sim.boxes - (sim.lift ? 1 : 0), true) });
     things.sort((a, b) => a.s - b.s).forEach((th) => th.f());
     drawPorters(sim);
@@ -346,5 +346,7 @@ export function createRiverArt(canvas) {
     if (sim.paused) drawPause(sim);
   }
 
-  return { draw, resize, toPicture };
+  /** Where the picture was last painted on the canvas (canvas pixels): [x, y, width, height]. For the album's upright card. */
+  const pictureRect = () => [ox, oy, W * scale, H * scale];
+  return { draw, resize, toPicture, pictureRect };
 }

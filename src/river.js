@@ -62,6 +62,8 @@ export const REEDS = [{ s: 0.22, d: 0.06 }, { s: 0.40, d: 0.94 }, { s: 0.63, d: 
 export const REED_S = 0.05;                         // a reed bed's size (along, across)
 export const REED_D = 0.2;
 export const FERRY_S = 0.76;                        // the ferry crosses back and forth here
+// v1.5.2 (Tom): the ferry lay right across everyone's path: taken out for now (it still runs in the rules, unseen and harmless)
+export const SHOW_FERRY = false;
 export const RIVER_PAUSE_ROWS = ['resume', 'album', 'sound', 'restart'];
 /** Where pause row i sits (picture y). */
 export const pauseRowY = (i, H) => H * 0.3 + i * 92;
@@ -289,7 +291,7 @@ export class River {
       fy.d += fy.dir * 0.045 * dt;
       if (fy.d > 0.88 || fy.d < 0.12) { fy.d = clamp(fy.d, 0.12, 0.88); fy.dir *= -1; fy.waitT = 4 + this.rand() * 3; }
     }
-    if (playing && p.stopT <= 0 && Math.abs(p.s - FERRY_S) < T.bodyS * 0.8 && Math.abs(fy.d - p.d) < T.bodyD) {
+    if (SHOW_FERRY && playing && p.stopT <= 0 && Math.abs(p.s - FERRY_S) < T.bodyS * 0.8 && Math.abs(fy.d - p.d) < T.bodyD) {
       p.stopT = T.bumpStop; fy.waitT = Math.max(fy.waitT, 1); this.stats.bumps++;
       if (scoring) { this.say('bump'); this.msg('SUMIMASEN', 2); }
     }
