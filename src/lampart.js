@@ -5,7 +5,7 @@
 // where he walks and the red lanterns hang; balconies above; beyond it, the street's other houses running off into the distance.
 // Kiyochika's night colours (research 12). Each lantern he lights glows and warms what is near it. This file only draws.
 import { VH, clamp } from './ocean.js';
-import { CAM, toCam, fromCam, A, B, RECESS, BEAM_H, LANTERN_H, RAIL_H, ENTRANCE_X, BALCONIES, pathAt, lanternAt, lightButton, LAMP_PAUSE_ROWS, DONE_CHOICES, DONE_WAIT, EVENING_WAIT } from './lamplighter.js';
+import { LTUNE, CAM, toCam, fromCam, A, B, RECESS, BEAM_H, LANTERN_H, RAIL_H, ENTRANCE_X, BALCONIES, pathAt, lanternAt, lightButton, LAMP_PAUSE_ROWS, DONE_CHOICES, DONE_WAIT, EVENING_WAIT } from './lamplighter.js';
 import { createUI, mixHex, INK, MUTED } from './ui.js';
 import { BUILD } from './version.js';
 import { pixelRatio } from './quality.js';
@@ -143,6 +143,11 @@ export function createLampArt(canvas) {
     }
     ctx.globalAlpha = 1;
     ctx.fillStyle = groundFill(); ctx.fillRect(0, CAM.eye, W, VH - CAM.eye);
+    // the bottom left corner, furthest from the lanterns, fades darker (Tom v1.4.26, research 42): a soft oval shadow
+    ctx.save(); ctx.translate(0, VH); ctx.scale(1, 0.3);
+    const rx = W * 0.36, dk = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+    dk.addColorStop(0, 'rgba(8,3,1,0.6)'); dk.addColorStop(0.55, 'rgba(8,3,1,0.3)'); dk.addColorStop(1, 'rgba(8,3,1,0)');
+    ctx.fillStyle = dk; ctx.fillRect(0, -rx, rx, rx); ctx.restore();
   }
 
   /** The street's colour: dark warm red-brown, a touch darker toward you (Tom's mockup, research 39). */
@@ -462,6 +467,7 @@ export function createLampArt(canvas) {
   }
   function drawStreetWalker(w) {
     w.lanternAt = null;
+    if (!LTUNE.showPeople) return;
     const c = proj([[w.x, 0, w.z]]);
     if (!c) return;
     const [x, y, k] = c[0];
@@ -479,6 +485,7 @@ export function createLampArt(canvas) {
     }
   }
   function drawBalconyPerson(w, time) {
+    if (!LTUNE.showPeople) return;
     const c = proj([[w.x, FLOOR1 + 0.05, w.z]]);
     if (!c) return;
     const [x, y, k] = c[0], sz = (k * PERSON_H) / BODY_UNITS;

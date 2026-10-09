@@ -90,6 +90,7 @@ export const LTUNE = {
   catchAt: 1.45,
   glowSecs: 1.4,
   walkers: { street: 5, balcony: 4 },
+  showPeople: false,       // (v1.4.26, Tom: try the scene with nobody about) the passers-by still walk, unseen, and nobody nods
   nodNear: 3,              // people in the street nod as they pass you this close (metres; they never stop you)
 };
 /** Where (along the path) he stands to light lantern l. */
@@ -105,7 +106,7 @@ export function exitS(W) {
 
 // the LIGHT button: round, like Plum Blossom's GATHER (centre x, centre y, radius). Taps are generous. Low down, a little right of
 // centre, at the foot of the post on the near block's corner (v1.4.23, Tom's screenshot, research 38; it was bottom left)
-export const lightButton = (W) => [Math.round(W * 0.69), 600 - 62, 54];   // (v1.4.25: right of the corner post, Tom; same size)
+export const lightButton = (W) => [Math.round(W * 0.665), 600 - 80, 54];   // (v1.4.26: a touch left and up: the phone cut its bottom)
 export const onLightButton = (x, y, W) => { const [cx, cy, r] = lightButton(W); return Math.hypot(x - cx, y - cy) < r + 22; };
 
 export const LAMP_PAUSE_ROWS = ['resume', 'album', 'sound', 'restart'];
@@ -323,7 +324,7 @@ export class Street {
       if (w.lane === 'balcony') { this.stepBalcony(w, dt); continue; }
       w.x += w.dir * w.speed * dt;
       w.step += w.speed * dt / 0.7;
-      if (this.state === 'play' && !w.nodded && Math.hypot(w.x - pp.x, w.z - pp.z) < T.nodNear) {
+      if (this.state === 'play' && T.showPeople && !w.nodded && Math.hypot(w.x - pp.x, w.z - pp.z) < T.nodNear) {
         w.nodded = true; w.nod = 1; p.nod = 1; this.stats.nods++;
         if (scoring) this.say('bow');
       }
