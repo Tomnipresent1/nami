@@ -84,6 +84,7 @@ export const LTUNE = {
   maxPace: 5,              // on the turns in and out of the recess he walks up to this much faster (paceAt; Tom v1.4.25)
   start: 10, stop: 18,     // how quickly he gets going, and stops when the finger lifts (quick: nothing slippy, Tom)
   turn: 16,                // slide the finger back this far (picture units) the other way and he turns round
+  decide: 0.2,             // a touch on the side he isn't facing: held still this long (seconds) before he turns that way
   reach: 0.5,              // how close (metres along the path) he must be to a lantern's spot for the LIGHT button to show
   standOff: 0.4,           // he stands just short of it to light it
   lightSecs: 2.8,
@@ -106,7 +107,7 @@ export function exitS(W) {
 
 // the LIGHT button: round, like Plum Blossom's GATHER (centre x, centre y, radius). Taps are generous. Low down, a little right of
 // centre, at the foot of the post on the near block's corner (v1.4.23, Tom's screenshot, research 38; it was bottom left)
-export const lightButton = (W) => [Math.round(W * 0.665), 600 - 80, 54];   // (v1.4.26: a touch left and up: the phone cut its bottom)
+export const lightButton = (W) => [Math.round(W * 0.64), 600 - 80, 54];   // (v1.4.27: a little left again; v1.4.26: up, the phone cut its bottom)
 export const onLightButton = (x, y, W) => { const [cx, cy, r] = lightButton(W); return Math.hypot(x - cx, y - cy) < r + 22; };
 
 export const LAMP_PAUSE_ROWS = ['resume', 'album', 'sound', 'restart'];
@@ -259,12 +260,21 @@ export class Street {
       // each new touch: one that lands on the LIGHT button (while it shows, or while he is lighting) never walks him
       if (inp.fingerX != null) {
         if (!this.drag || this.drag.id !== inp.touchId) {
-          // a new touch: on his right he walks on (toward the end of the path), on his left he walks back
+          // a new touch: on his right he walks on (toward the end of the path), on his left he walks back. But a touch on the side
+          // he is NOT facing waits a moment (Tom v1.4.27: stroking right from left of him flicked him round and back every stroke):
+          // a slide decides it, or, held still for LTUNE.decide seconds, the side it landed on
+          const side = inp.fingerX >= this.playerScreen()[0] ? 1 : -1;
           this.drag = { id: inp.touchId, button: (this.reachable >= 0 || p.lightT > 0) && onLightButton(inp.fingerX, inp.fingerY ?? 0, this.W),
-            dir: inp.fingerX >= this.playerScreen()[0] ? 1 : -1, ext: inp.fingerX };
+            dir: side === p.face ? side : 0, side, x0: inp.fingerX, t: 0, ext: inp.fingerX };
+        }
+        const d = this.drag;
+        if (!d.dir) {
+          d.t += dt;
+          if (Math.abs(inp.fingerX - d.x0) >= T.turn) d.dir = inp.fingerX > d.x0 ? 1 : -1;
+          else if (d.t >= T.decide) d.dir = d.side;
+          d.ext = inp.fingerX;
         }
         // slide the finger back the other way (even a little) and he turns round: back along the same path (Tom, v1.4.5)
-        const d = this.drag;
         if (d.dir > 0) { d.ext = Math.max(d.ext, inp.fingerX); if (inp.fingerX < d.ext - T.turn) { d.dir = -1; d.ext = inp.fingerX; } }
         else { d.ext = Math.min(d.ext, inp.fingerX); if (inp.fingerX > d.ext + T.turn) { d.dir = 1; d.ext = inp.fingerX; } }
       } else this.drag = null;
