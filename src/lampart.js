@@ -25,6 +25,7 @@ const RAIL = ['#2e2822', '#5c2d23'];                      // the railing's board
 const SHOJI = ['#2e2f2b', '#f0c98a'];                     // paper windows upstairs
 const LATTICE = ['#141210', '#d2704c'];                   // the paper behind the ground floor's lattice
 const NOREN = ['#141a28', '#30406a'];                     // the indigo noren over the main door (deep: a paler one read as a hole to the sky)
+const METEOR_SECS = 0.9;                                  // how long a shooting star takes to cross
 const GROUND = ['#2b170b', '#200f06'];                    // the street: a dark, warm red-brown (v1.4.24, Tom's mockup, research 39)
 const FAR_WALL = ['#24221e', '#2a2722', '#1f1d1a'], FAR_SIDE = '#1c1a17';
 const SIL = '#17181b';
@@ -131,7 +132,7 @@ export function createLampArt(canvas) {
   const lit = (pair, w) => mixHex(pair[0], pair[1], w);
 
   // ---------- sky and ground ----------
-  function drawSkyGround() {
+  function drawSkyGround(sim) {
     const g = ctx.createLinearGradient(0, 0, 0, SKY_GLOW_Y);
     g.addColorStop(0, SKY_TOP); g.addColorStop(0.45, SKY_MID); g.addColorStop(1, SKY_GLOW);
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, CAM.eye + 1);
@@ -142,6 +143,16 @@ export function createLampArt(canvas) {
       ctx.fillStyle = '#d8dce8'; ctx.beginPath(); ctx.arc(st.u * W, st.y, st.r, 0, Math.PI * 2); ctx.fill();
     }
     ctx.globalAlpha = 1;
+    // now and then a shooting star: a thin, faint streak that slides a short way down the sky and is gone (Tom v1.4.28)
+    for (const m of sim.meteors || []) {
+      const u = (sim.eveT - m.at) / METEOR_SECS;
+      if (u < 0 || u > 1) continue;
+      const run = W * 0.15, hx = m.u * W + m.dir * run * u, hy = m.y + run * m.slope * u, len = 70 * Math.min(1, u * 3);
+      const tx = hx - m.dir * len, ty = hy - len * m.slope, a = 0.5 * Math.sin(Math.PI * u);
+      const gr = ctx.createLinearGradient(tx, ty, hx, hy);
+      gr.addColorStop(0, 'rgba(220,226,240,0)'); gr.addColorStop(1, `rgba(235,238,248,${a})`);
+      ctx.strokeStyle = gr; ctx.lineWidth = 1.2; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(hx, hy); ctx.stroke();
+    }
     ctx.fillStyle = groundFill(); ctx.fillRect(0, CAM.eye, W, VH - CAM.eye);
     // the bottom left corner, furthest from the lanterns, fades darker (Tom v1.4.26, research 42): a soft oval shadow
     ctx.save(); ctx.translate(0, VH); ctx.scale(1, 0.3);
@@ -581,7 +592,7 @@ export function createLampArt(canvas) {
     lights = sim.lanterns.map((l) => { const [x, , z] = lanternAt(l); return { x, z, glow: l.glow }; });
 
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
-    drawSkyGround();
+    drawSkyGround(sim);
     drawFarHouses();
     const street = sim.walkers.filter((w) => w.lane !== 'balcony').sort((a, b) => depthOf(b.x, 0, b.z) - depthOf(a.x, 0, a.z));
     for (const w of street) if (w.x < -3) drawStreetWalker(w);                     // (far along the street, beyond the teahouse)

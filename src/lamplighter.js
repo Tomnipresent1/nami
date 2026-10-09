@@ -163,6 +163,11 @@ export class Street {
     this.drag = null;                // the touch now steering (a touch that began on the LIGHT button is left alone)
     this.reachable = -1;             // the unlit lantern within reach (the LIGHT button shows), or -1
     this.ink = 0;
+    // two faint shooting stars cross the sky each evening (Tom v1.4.28): when (seconds into the evening), where, which way
+    const r = this.rand;
+    this.eveT = 0;
+    // (the open sky is between the left block's roof and the near block, about 0.2 to 0.6 of the width across)
+    this.meteors = [12 + r() * 10, 42 + r() * 14].map((at) => { const dir = r() < 0.5 ? 1 : -1; return { at, dir, u: (dir > 0 ? 0.2 : 0.43) + r() * 0.15, y: 20 + r() * 50, slope: 0.3 + r() * 0.25 }; });
   }
   lightAll() { for (const l of this.lanterns) { l.lit = true; l.glow = 1; } }
   get litCount() { return this.lanterns.filter((l) => l.lit).length; }
@@ -247,6 +252,7 @@ export class Street {
   stepWorld(dt, inp, scoring) {
     const T = LTUNE, p = this.player, playing = this.state === 'play';
     this.t += dt;
+    if (playing) this.eveT += dt;
     if (this.message && (this.message.t -= dt) <= 0) this.message = null;
     if ((this.cricketIn -= dt) <= 0) { this.say('cricket'); this.cricketIn = 3 + this.rand() * 7; }
 

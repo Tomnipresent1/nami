@@ -7,7 +7,7 @@ import { createBridgeArt } from './bridgeart.js';
 import { createGardenArt } from './gardenart.js';
 import { createLampArt } from './lampart.js';
 import { input, tilt, setupInput, pollInput, recentreTilt, setSteerMode, requestTiltPermission } from './input.js';
-import { sfx, bridgeSfx, gardenSfx, lampSfx, unlock, setMuted, ambience, rain, wind } from './audio.js';
+import { sfx, bridgeSfx, gardenSfx, lampSfx, unlock, setMuted, ambience, rain, wind, distantMusic } from './audio.js';
 import { waveAmp, T_GONE, VH as PICTURE_H } from './ocean.js';
 import { PRINTS, cardAt, drawAlbum } from './album.js';
 import { BUILD } from './version.js';
@@ -207,6 +207,7 @@ function frame(now) {
     playEvents(cur);
   }
   setMuted(!cur.sim.settings.sound);
+  distantMusic(!album.open && cur === levels.lamp && !street.paused && street.state !== 'title' ? 1 : 0);   // (only the Lamplighter's evening)
   if (album.open) { ambience(0, 0.5); rain(0); wind(0); }
   else if (cur === levels.wave) {
     let level = 0; for (const w of sea.waves) level = Math.max(level, waveAmp(w) / 200 * (w.t < T_GONE ? 1 : 0));
