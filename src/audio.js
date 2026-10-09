@@ -5,6 +5,9 @@ let ac = null, master = null, bed = null, drone = null, rainBed = null, windBed 
 // a Japanese "hirajoshi"-style five-note scale (D E F A Bb), two octaves
 const SCALE = [293.66, 329.63, 349.23, 440, 466.16, 587.33, 659.25, 698.46, 880, 932.33];
 
+// the scale carried on up past its two octaves (index 10 = the next D, and so on)
+const scaleUp = (i) => SCALE[i % 5] * 2 ** Math.floor(i / 5);
+
 export function setMuted(m) { muted = !!m; if (master) master.gain.value = muted ? 0 : 0.6; }
 
 export function unlock() {
@@ -183,8 +186,8 @@ export const gardenSfx = {
 // mostly very faint, then now and then the air carries it a little nearer and it LINGERS there a while, so you notice it (v1.4.29).
 // FAR_MUSIC = how loud it is overall (Tom to judge on the phone).
 const FAR_MUSIC = 0.5;
-const FAR_LOW = 0.4;                                   // how faint it is most of the time (1 = at its nearest)
-const FAR_SWELL = [3, 9, 5];                           // a swell: seconds rising, lingering near, fading back
+const FAR_LOW = 0.15;                                   // how faint it is most of the time (1 = at its nearest)
+const FAR_SWELL = [1.2, 6, 2.5];                        // a swell: seconds rising, lingering near (a phrase plays), fading back
 const MIYAKO = [329.63, 349.23, 440, 493.88, 523.25, 659.25, 698.46];   // the miyako-bushi scale (E F A B C), the city's festival sound
 let far = null;
 function farBus() {
@@ -196,7 +199,7 @@ function farBus() {
   const g = ac.createGain(); g.gain.value = 0;
   const air = ac.createGain(); air.gain.value = FAR_LOW;                                                      // coming and going on the air
   lp.connect(hp); hp.connect(g); hp.connect(dl); dl.connect(fb); fb.connect(dl); dl.connect(wet); wet.connect(g); g.connect(air); air.connect(master);
-  far = { input: lp, g, air, next: 0, phrase: [], swellAt: ac.currentTime + 6 };
+  far = { input: lp, g, air, next: 0, phrase: [], swellAt: ac.currentTime + 4 };
   return far;
 }
 function farNote(freq, t, vol) {                       // a shamisen-ish pluck: bright and quick to die
@@ -216,27 +219,24 @@ export function distantMusic(level) {
   if (!ac) return;
   const f = farBus(), now = ac.currentTime;
   f.g.gain.setTargetAtTime(level * FAR_MUSIC, now, 0.8);
-  if (level <= 0) { f.next = Math.max(f.next, now + 1); return; }
+  if (level <= 0) { f.swellAt = Math.max(f.swellAt, now + 2); f.phrase = []; return; }
   if (now >= f.swellAt) {
+    // the air carries it nearer: it rises, LINGERS while one whole phrase plays (Tom v1.4.30: 5-6 s, not 2), then drifts off
     const [up, hold, down] = FAR_SWELL, a = f.air.gain;
     a.cancelScheduledValues(now); a.setValueAtTime(a.value, now);
     a.linearRampToValueAtTime(1, now + up); a.setValueAtTime(1, now + up + hold); a.linearRampToValueAtTime(FAR_LOW, now + up + hold + down);
-    f.swellAt = now + up + hold + down + 12 + Math.random() * 14;
-  }
-  if (f.next > now + 0.25) return;
-  if (!f.phrase.length) {
-    // a new phrase after a rest: 10-18 notes stepping round the scale, a few repeated, a beat of 0.24 s
-    if (f.next) { f.next = Math.max(f.next, now) + 3 + Math.random() * 7; }
-    let i = 2 + Math.floor(Math.random() * 3);
-    const n = 10 + Math.floor(Math.random() * 9);
-    for (let k = 0; k < n; k++) {
-      f.phrase.push({ i, len: Math.random() < 0.2 ? 2 : 1, drum: k % 4 === 0 });
+    f.swellAt = now + up + hold + down + 10 + Math.random() * 12;
+    // the phrase: notes stepping round the scale, a few held, a beat of 0.24 s, filling the time it is near
+    f.phrase = []; let i = 2 + Math.floor(Math.random() * 3), secs = 0, k = 0;
+    while (secs < up + hold - 0.6) {
+      const len = Math.random() < 0.2 ? 2 : 1;
+      f.phrase.push({ i, len, drum: k++ % 4 === 0 }); secs += 0.24 * len;
       i = Math.max(0, Math.min(MIYAKO.length - 1, i + [-2, -1, -1, 1, 1, 2, 0][Math.floor(Math.random() * 7)]));
     }
     f.phrase[f.phrase.length - 1].len = 3;
-    if (!f.next || f.next < now) f.next = now + 0.1;
-    return;
+    f.next = now + 0.3;
   }
+  if (!f.phrase.length || f.next > now + 0.25) return;
   const note = f.phrase.shift(), t = Math.max(f.next, now + 0.02);
   farNote(MIYAKO[note.i], t, 0.05);
   if (note.drum) farDrum(t, 0.09);
@@ -246,7 +246,8 @@ export function distantMusic(level) {
 /** The Lamplighter's sounds. */
 export const lampSfx = {
   // a lamp catching: a soft gassy "pop", then a warm bell note that climbs a little with each lamp lit
-  light(n = 1) { noise(0.25, 0.09, 900, 200); bell(SCALE[Math.min(9, 1 + n)] / 2, 0.06, 0.12); pluck(SCALE[Math.min(9, 1 + n)], 0.07, 0.16, 2.4); },
+  // (v1.4.30, Tom: it flattened out after the 8th lamp, the scale ran out; now it carries on up into the next octave to the last)
+  light(n = 1) { const f = scaleUp(1 + n); noise(0.25, 0.09, 900, 200); bell(f / 2, 0.06, 0.12); pluck(f, 0.07, 0.16, 2.4); },
   // suzumushi (the bell cricket), somewhere in the dark: a few high silvery trills
   cricket() {
     if (!ac) return;

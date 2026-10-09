@@ -169,7 +169,8 @@ export class Street {
     const r = this.rand;
     this.eveT = 0;
     // (the open sky is between the left block's roof and the near block, about 0.2 to 0.6 of the width across)
-    this.meteors = [10 + r() * 8, 28 + r() * 10, 48 + r() * 12].map((at) => { const dir = r() < 0.5 ? 1 : -1; return { at, dir, u: (dir > 0 ? 0.2 : 0.43) + r() * 0.15, y: 20 + r() * 50, slope: 0.3 + r() * 0.25 }; });
+    // all falling the same way, from the upper left down to the right (Tom v1.4.30, research 44)
+    this.meteors = [10 + r() * 8, 28 + r() * 10, 48 + r() * 12].map((at) => ({ at, dir: 1, u: 0.12 + r() * 0.3, y: 5 + r() * 40, slope: 0.65 + r() * 0.2 }));
   }
   lightAll() { for (const l of this.lanterns) { l.lit = true; l.glow = 1; } }
   get litCount() { return this.lanterns.filter((l) => l.lit).length; }
