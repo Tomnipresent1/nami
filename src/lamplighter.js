@@ -69,13 +69,16 @@ export function paceAt(s) {
 // one where the walkway turns in, four along the recess (one at the main door), one where it turns out, three along the near block
 // (close together: the near block comes toward you, so they spread out across the picture, as in Tom's frame)
 export const LANTERNS = [0.7, 2.7, 4.5, 7.1, 11.5, 13.5, 15.5, 17.5, 21.9, 23.9, 25.1, 26.3].map((s) => ({ s }));
+// (v1.4.31, Tom: the one where the walkway turns out hid right behind the corner post; nudged 0.1 m along the street so half of it
+// peeks out to the right of the post. Not strictly where it would hang, but it reads.)
+LANTERNS[8].dx = 0.1;
 export const ENTRANCE_X = (A + B) / 2;       // the main door, in the recess, under its curved gable
 // heights (metres): the walkway roof's front beam, a lantern, the railing
 export const BEAM_H = 2.9;
 export const LANTERN_H = 2.45;
 export const RAIL_H = 0.9;
 /** Where lantern l hangs (world): over the railing, beside the path. */
-export function lanternAt(l) { const p = pathAt(l.s); return [p.x + p.out[0] * 1, LANTERN_H, p.z + p.out[1] * 1]; }
+export function lanternAt(l) { const p = pathAt(l.s); return [p.x + p.out[0] * 1 + (l.dx || 0), LANTERN_H, p.z + p.out[1] * 1]; }
 // people walking along the street: two lanes, in front of the teahouse
 export const LANES = { street: -3.2, far: -6.2 };
 

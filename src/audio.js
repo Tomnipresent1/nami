@@ -187,7 +187,7 @@ export const gardenSfx = {
 // FAR_MUSIC = how loud it is overall (Tom to judge on the phone).
 const FAR_MUSIC = 0.5;
 const FAR_LOW = 0.15;                                   // how faint it is most of the time (1 = at its nearest)
-const FAR_SWELL = [1.2, 6, 2.5];                        // a swell: seconds rising, lingering near (a phrase plays), fading back
+const FAR_SWELL = [1.2, 9.5, 2.5];                        // a swell: seconds rising, lingering near (a phrase plays), fading back
 const MIYAKO = [329.63, 349.23, 440, 493.88, 523.25, 659.25, 698.46];   // the miyako-bushi scale (E F A B C), the city's festival sound
 let far = null;
 function farBus() {
@@ -221,7 +221,7 @@ export function distantMusic(level) {
   f.g.gain.setTargetAtTime(level * FAR_MUSIC, now, 0.8);
   if (level <= 0) { f.swellAt = Math.max(f.swellAt, now + 2); f.phrase = []; return; }
   if (now >= f.swellAt) {
-    // the air carries it nearer: it rises, LINGERS while one whole phrase plays (Tom v1.4.30: 5-6 s, not 2), then drifts off
+    // the air carries it nearer: it rises, LINGERS while one whole phrase plays (Tom: 5-6 s, not 2, v1.4.30; then 10 s, v1.4.31), then drifts off
     const [up, hold, down] = FAR_SWELL, a = f.air.gain;
     a.cancelScheduledValues(now); a.setValueAtTime(a.value, now);
     a.linearRampToValueAtTime(1, now + up); a.setValueAtTime(1, now + up + hold); a.linearRampToValueAtTime(FAR_LOW, now + up + hold + down);
