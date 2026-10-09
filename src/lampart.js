@@ -40,11 +40,13 @@ const UPPER_WARM = 0;                                     // how lit the upper f
 // fixed coloured lights inside the upper floors (Tom's mockup, research 37): which block (0 left, 1 recess, 2 near) and storey (0 =
 // the balcony storey), where along the street (X, metres) the brightest panel is, how fast it fades panel by panel (spread, metres),
 // the light's colour and how strongly it tints the paper, and the soft glow it casts on the wall round it. Blue (v1.4.19), yellow
-// (v1.4.20); still to come (Tom's notes): red on the recess, orange on the left block's top storey.
+// (v1.4.20), red (v1.4.21), orange (v1.4.22): all four from Tom's mockup (research 37).
 const UPPER_LIGHTS = [
   { block: 0, storey: 0, x: 16.6, spread: 1.7, colour: '#b9cbf2', strength: 0.92, glow: 'rgba(110,140,220,0.22)' },
   // (v1.4.20) warm yellow in the near block's balcony storey, a little more vibrant than Tom's mockup
   { block: 2, storey: 0, x: 31.55, spread: 1.6, colour: '#ffd36a', strength: 0.95, glow: 'rgba(255,190,70,0.26)' },
+  // (v1.4.22) orange in the left block's top storey, brightest by its corner over the recess (where Tom's arrow points)
+  { block: 0, storey: 1, x: 18.9, spread: 1.6, colour: '#ff9348', strength: 0.9, glow: 'rgba(255,120,40,0.24)' },
   // (v1.4.21) red in the recess's storey, brightest over the main door
   { block: 1, storey: 0, x: 24.25, spread: 1.7, colour: '#f2604a', strength: 0.88, glow: 'rgba(255,70,50,0.24)' },
 ];
