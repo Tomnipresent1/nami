@@ -21,13 +21,14 @@ export const heightFor = (aspect) => Math.round(clamp(RIVER_W * aspect, MIN_H, M
 // drifting down the river"): the print is the LOWER screen (v 0..1, unchanged); UP is a new screen of river above it (v -1..0),
 // winding down from the top right. The view follows the raft down and settles on the print at the landing.
 // (the print's first point moved in from the very edge, 0.02 -> 0.11: scrolling, you pass through there and were half off screen)
-const UP = [[0.74, -1.36], [0.70, -1.18], [0.62, -1.0], [0.47, -0.82], [0.32, -0.64], [0.2, -0.45], [0.14, -0.25]];
-const CL = [...UP, [0.11, -0.06], [0.10, 0.10], [0.15, 0.27], [0.27, 0.43], [0.49, 0.55], [0.63, 0.66], [0.70, 0.81], [0.74, 0.97], [0.78, 1.12], [0.84, 1.27]];
+// (v1.5.9, Tom: wider and more centred: the whole course pulled in toward the middle; the print's lower half is as it was)
+const UP = [[0.6, -1.74], [0.6, -1.56], [0.59, -1.36], [0.57, -1.18], [0.53, -1.0], [0.46, -0.82], [0.38, -0.64], [0.31, -0.45], [0.26, -0.25]];
+const CL = [...UP, [0.23, -0.06], [0.23, 0.10], [0.27, 0.27], [0.36, 0.43], [0.5, 0.55], [0.63, 0.66], [0.70, 0.81], [0.74, 0.97], [0.78, 1.12], [0.84, 1.27]];
 const S_PER_SEG = 0.2;              // s from one point to the next; s = 0 at the print's CL[1], s = 1 (the landing) at its CL[6]
 /** Where you set off: near the top of the upper screen (s < 0 is the stretch above the print). */
-export const START_S = -1.05;
+export const START_S = -1.12;
 /** How far the view can scroll up above the print (picture heights). */
-export const SCROLL_UP = 1;
+export const SCROLL_UP = 1.25;   // (v1.5.9: a little more above the start, so the camera follows you from the first moment)
 const cat = (a, b, c, d, t) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t * t + (-a + 3 * b - 3 * c + d) * t * t * t);
 function centreUV(s) {
   const f = clamp(1 + UP.length + s / S_PER_SEG, 0, CL.length - 1.0001), i = Math.floor(f), t = f - i;
@@ -38,7 +39,7 @@ function centreUV(s) {
 export const centre = (s, H) => { const [u, v] = centreUV(s); return [u * RIVER_W, v * H]; };
 /** Half the river's width at s (picture units): narrow far away at the top, wide near the bottom. */
 // (a little narrower on a shorter screen, where the bends are squeezed tighter, so the inside bank never folds back)
-export const halfWidth = (s, H = 1300) => RIVER_W * (0.09 + 0.17 * smooth((s + 0.1) / 0.75)) * (0.66 + 0.34 * smooth((H - 800) / 500));
+export const halfWidth = (s, H = 1300) => RIVER_W * (0.145 + 0.115 * smooth((s + 0.1) / 0.75)) * (0.66 + 0.34 * smooth((H - 800) / 500));
 /** Which way the water flows at s (unit vector) and the way across toward the far bank (d = 1). */
 export function frame(s, H) {
   const a = centre(s - 0.004, H), b = centre(s + 0.004, H);

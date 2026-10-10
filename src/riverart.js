@@ -53,7 +53,7 @@ export function createRiverArt(canvas) {
   const C = (name, ink) => inked(LAYERS[name], ink);
 
   // ---------- the river's outline ----------
-  function bankLine(d, s0 = START_S - 0.45, s1 = 1.75, n = 220) {
+  function bankLine(d, s0 = START_S - 0.75, s1 = 1.75, n = 220) {
     const pts = [];
     for (let i = 0; i <= n; i++) { const s = s0 + ((s1 - s0) * i) / n; pts.push(riverPoint(s, d, H)); }
     return pts;
@@ -80,7 +80,7 @@ export function createRiverArt(canvas) {
     }
     ctx.globalAlpha = 1;
     // up the stretch above the print: a few thatched huts and a path on the far fields
-    hut(W * 0.88, H * -0.7, 0.9, ink); hut(W * 0.97, H * -0.64, 0.7, ink); hut(W * 0.8, H * -0.6, 0.6, ink);
+    hut(W * 0.88, H * -0.7, 0.9, ink); hut(W * 0.97, H * -0.64, 0.7, ink); hut(W * 0.8, H * -0.58, 0.6, ink); hut(W * 0.9, H * -1.1, 0.7, ink);
     ctx.strokeStyle = C('rock', ink); ctx.lineWidth = 6; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(W * 0.74, H * -0.84); ctx.quadraticCurveTo(W * 0.86, H * -0.78, W * 1.02, H * -0.8); ctx.stroke();
     // Zenko-ji's roofs up in the trees, top right
@@ -173,7 +173,7 @@ export function createRiverArt(canvas) {
 
   function drawTrees(ink) {
     // up on the near bank of the stretch above: pines and a hut
-    pine(W * 0.14, H * -0.66, 0.85, ink); pine(W * 0.3, H * -0.9, 0.7, ink); hut(W * 0.12, H * -0.93, 0.8, ink);
+    pine(W * 0.1, H * -0.62, 0.85, ink); pine(W * 0.16, H * -0.98, 0.7, ink); hut(W * 0.08, H * -1.12, 0.8, ink);
     pine(W * 0.1, H * 0.86, 1.15, ink);
     willow(W * 0.27, H * 0.8, ink);
     pine(W * 0.93, H * 0.99, 0.9, ink);
