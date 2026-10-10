@@ -24,6 +24,7 @@ const LAYERS = {
   pine: ['#d4d8c6', '#3f6a48', 25, 75],
   trunk: ['#d6ccbc', '#6b5640', 20, 70],
 };
+const STEER_PIVOT = 1;                                    // the raft turns about its stern (+1, steered from the front) or bow (-1)
 const BOKASHI = 22;                                       // layers in the soft indigo fade along each bank
 const SKIN = '#e6c8a2', YOU = '#a8452f', BOX = '#ead7a8';
 const ROBES = ['#2f3d5c', '#4a5468', '#3a3f4a', '#5b6650'];
@@ -198,12 +199,13 @@ export function createRiverArt(canvas) {
     ctx.restore();
   }
   /** A timber raft lying along the stream at s, d, poled from the back. yaw (radians, + = bow toward the far bank): it turns about
-   *  its BOW, so the stern swings out, as a raft steered from the back does (v1.5.5). */
+   *  its STERN, so the bow swings round toward where it is going: steered from the front (v1.5.7, Tom's trial; v1.5.5-v1.5.6
+   *  turned about the bow, steered from the back, which felt off). PIVOT: +1 = turn about the stern, -1 = about the bow. */
   function raft(s, d, len, pole, robe, boxes = 0, you = false, yaw = 0) {
     const [x0, y0] = riverPoint(s, d, H), f = frame(s, H), k = scaleAt(s);
     const L = 120 * k * len, Wd = 15 * k;
     const turn = (f.nx * -f.ty + f.ny * f.tx) >= 0 ? 1 : -1, rot = Math.atan2(f.ty, f.tx) + turn * yaw, tx = Math.cos(rot), ty = Math.sin(rot);
-    const bow = [x0 + f.tx * L * 0.35, y0 + f.ty * L * 0.35], x = bow[0] - tx * L * 0.35, y = bow[1] - ty * L * 0.35;
+    const pv = -STEER_PIVOT * L * 0.35, piv = [x0 + f.tx * pv, y0 + f.ty * pv], x = piv[0] - tx * pv, y = piv[1] - ty * pv;
     ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
     // a faint wake
     ctx.strokeStyle = '#eef1ee'; ctx.globalAlpha = 0.5; ctx.lineWidth = 1.3;
