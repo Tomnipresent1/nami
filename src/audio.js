@@ -10,6 +10,14 @@ const scaleUp = (i) => SCALE[i % 5] * 2 ** Math.floor(i / 5);
 
 export function setMuted(m) { muted = !!m; if (master) master.gain.value = muted ? 0 : 0.6; }
 
+/** The screen went off or the app went to the background: silence everything at once (Tom v1.5.8: he walked round the house
+ *  still hearing the river). Coming back wakes it again. */
+export function sleepAudio(asleep) {
+  if (!ac) return;
+  if (asleep) { if (ac.state === 'running') ac.suspend(); }
+  else if (ac.state === 'suspended') ac.resume();
+}
+
 export function unlock() {
   if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
   const AC = window.AudioContext || window.webkitAudioContext;

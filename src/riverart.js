@@ -3,7 +3,7 @@
 // the temple roofs up in the trees, timber rafts poled down the stream, a ferry crossing, pines and a willow on the near bank.
 // The picture is RIVER_W wide and sim.H tall; on a sideways screen (the PC, or the album card) it sits upright in the middle.
 import { clamp } from './ocean.js';
-import { RIVER_W, RTUNE, REEDS, REED_S, REED_D, FERRY_S, SHOW_FERRY, RIVER_PAUSE_ROWS, DONE_CHOICES, DONE_WAIT, frame, riverPoint, scaleAt,
+import { RIVER_W, RTUNE, START_S, SCROLL_UP, REEDS, REED_S, REED_D, FERRY_S, SHOW_FERRY, RIVER_PAUSE_ROWS, DONE_CHOICES, DONE_WAIT, frame, riverPoint, scaleAt,
   pauseRowY, doneButton, unloadButton } from './river.js';
 import { createUI, inked, PAPER, INK, MUTED, SEAL } from './ui.js';
 import { BUILD } from './version.js';
@@ -31,12 +31,12 @@ const ROBES = ['#2f3d5c', '#4a5468', '#3a3f4a', '#5b6650'];
 const PORTERS = [{ robe: '#3d6b5a', hat: true }, { robe: '#2f3d5c', hat: false }, { robe: '#6b5a48', hat: true }];
 // the dark woods: a dense stand of thin trunks along the top, as in the print
 const TRUNKS = Array.from({ length: 150 }, (_, i) => ({ u: ((i * 0.618034) % 1) * 1.04 - 0.02, top: (i * 0.37) % 1, w: 1 + ((i * 7) % 3) * 0.6 }));
-const RIPPLES = Array.from({ length: 46 }, (_, i) => ({ s: (i * 0.618034) % 1, d: 0.12 + ((i * 0.381966 * 5) % 1) * 0.76, len: 0.012 + ((i * 13) % 5) * 0.004 }));
+const RIPPLES = Array.from({ length: 90 }, (_, i) => ({ s: (i * 0.618034) % 1, d: 0.12 + ((i * 0.381966 * 5) % 1) * 0.76, len: 0.012 + ((i * 13) % 5) * 0.004 }));
 
 export function createRiverArt(canvas) {
   const ui = createUI(canvas), ctx = ui.ctx;
   const W = RIVER_W;
-  let H = 1200, scale = 1, ox = 0, oy = 0, lastT = 0;
+  let H = 1200, scale = 1, ox = 0, oy = 0, lastT = 0, cam = 0;   // cam: how far the view has scrolled (picture y at the top; <= 0)
 
   function resize() {
     const cssH = canvas.clientHeight || window.innerHeight, cssW = canvas.clientWidth || window.innerWidth;
@@ -53,7 +53,7 @@ export function createRiverArt(canvas) {
   const C = (name, ink) => inked(LAYERS[name], ink);
 
   // ---------- the river's outline ----------
-  function bankLine(d, s0 = -0.45, s1 = 1.75, n = 110) {
+  function bankLine(d, s0 = START_S - 0.45, s1 = 1.75, n = 220) {
     const pts = [];
     for (let i = 0; i <= n; i++) { const s = s0 + ((s1 - s0) * i) / n; pts.push(riverPoint(s, d, H)); }
     return pts;
@@ -62,21 +62,27 @@ export function createRiverArt(canvas) {
 
   // ---------- the land ----------
   function drawLand(ink) {
-    // fields on the far bank under a sky band and the dark woods
-    ctx.fillStyle = C('field', ink); ctx.fillRect(0, 0, W, H);
-    const g = ctx.createLinearGradient(0, 0, 0, H * 0.3);
-    g.addColorStop(0, C('sky', ink)); g.addColorStop(0.18, C('woods', ink)); g.addColorStop(1, C('woods', ink));
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(W, 0); ctx.lineTo(W, H * 0.3);
+    // fields on the far bank, the whole way down (both screens: the scroller's upper stretch and the print below it)
+    const top = -SCROLL_UP * H;
+    ctx.fillStyle = C('field', ink); ctx.fillRect(0, top - 60, W, H - top + 120);
+    // the dark woods: a band across the print's top, reaching up into the stretch above (no sky: we look down from above)
+    const wTop = (x) => H * (-0.2 + 0.04 * Math.sin(x / 61)) + 10 * Math.sin(x / 17);
+    ctx.fillStyle = C('woods', ink);
+    ctx.beginPath();
+    for (let x = 0; x <= W; x += 20) ctx.lineTo(x, wTop(x));
     for (let x = W; x >= 0; x -= 20) ctx.lineTo(x, H * (0.26 + 0.03 * Math.sin(x / 47)) + 8 * Math.sin(x / 13));
     ctx.closePath(); ctx.fill();
     // thin trunks in the woods
     ctx.strokeStyle = C('woods', ink * 1.1); ctx.globalAlpha = 0.55;
-    for (const t of TRUNKS) {
-      const x = t.u * W, y0 = H * (0.03 + 0.06 * t.top), y1 = H * (0.25 + 0.04 * Math.sin(x / 47));
+    for (const t of TRUNKS) for (const band of [0, 1]) {
+      const x = t.u * W, y0 = band ? H * (0.03 + 0.06 * t.top) : wTop(x) + 12 + H * 0.05 * t.top, y1 = band ? H * (0.25 + 0.04 * Math.sin(x / 47)) : H * 0.02;
       ctx.lineWidth = t.w; ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x + 2, y1); ctx.stroke();
     }
     ctx.globalAlpha = 1;
+    // up the stretch above the print: a few thatched huts and a path on the far fields
+    hut(W * 0.88, H * -0.7, 0.9, ink); hut(W * 0.97, H * -0.64, 0.7, ink); hut(W * 0.8, H * -0.6, 0.6, ink);
+    ctx.strokeStyle = C('rock', ink); ctx.lineWidth = 6; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(W * 0.74, H * -0.84); ctx.quadraticCurveTo(W * 0.86, H * -0.78, W * 1.02, H * -0.8); ctx.stroke();
     // Zenko-ji's roofs up in the trees, top right
     roof(W * 0.8, H * 0.105, 64, '#5a2e2a', '#3d2220'); roof(W * 0.66, H * 0.13, 40, '#4a2a26', '#311c1a');
     // thatched huts on the far bank
@@ -119,9 +125,9 @@ export function createRiverArt(canvas) {
     // little pale streaks drifting with the current
     ctx.strokeStyle = '#eef1ee'; ctx.lineWidth = 1.4;
     for (const r of RIPPLES) {
-      const s = ((r.s + t / RTUNE.journeySecs * 0.9) % 1.3) - 0.15;
+      const span = 1.3 - START_S, s = ((r.s * span + t / RTUNE.journeySecs * 0.9) % span) + START_S - 0.15;
       const a = riverPoint(s, r.d, H), b = riverPoint(s + r.len, r.d, H);
-      ctx.globalAlpha = 0.35 * clamp(Math.min(s + 0.15, 1.15 - s) * 6, 0, 1);
+      ctx.globalAlpha = 0.35 * clamp(Math.min(s - START_S + 0.15, 1.15 - s) * 6, 0, 1);
       ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
     }
     ctx.restore();
@@ -143,7 +149,7 @@ export function createRiverArt(canvas) {
   // the near bank: everything on the bottom-left side of the river
   function drawNearBank(ink) {
     const near = bankLine(0);
-    ctx.beginPath(); trace(near); ctx.lineTo(-60, H + 60); ctx.lineTo(-60, -60); ctx.closePath();
+    ctx.beginPath(); trace(near); ctx.lineTo(-60, H + 60); ctx.lineTo(-60, -SCROLL_UP * H - 120); ctx.closePath();
     const g = ctx.createLinearGradient(0, H * 0.5, W * 0.5, H);
     g.addColorStop(0, C('grass', ink)); g.addColorStop(0.55, C('grass', ink)); g.addColorStop(1, C('ground', ink));
     ctx.fillStyle = g; ctx.fill();
@@ -166,6 +172,8 @@ export function createRiverArt(canvas) {
   const landing = () => riverPoint(1, -0.16, H);
 
   function drawTrees(ink) {
+    // up on the near bank of the stretch above: pines and a hut
+    pine(W * 0.14, H * -0.66, 0.85, ink); pine(W * 0.3, H * -0.9, 0.7, ink); hut(W * 0.12, H * -0.93, 0.8, ink);
     pine(W * 0.1, H * 0.86, 1.15, ink);
     willow(W * 0.27, H * 0.8, ink);
     pine(W * 0.93, H * 0.99, 0.9, ink);
@@ -324,8 +332,14 @@ export function createRiverArt(canvas) {
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = PAPER; ctx.fillRect(0, 0, canvas.width, canvas.height);
     const ink = 100;                    // (v1.5.5, Tom: no inking-in on this print: full colour from the start)
 
+    // the view follows your raft down the river (v1.5.8): it keeps you about a third of the way down the screen, easing along,
+    // and settles on the print itself at the landing. Behind the album card and at the end it shows the print.
+    let camTo = 0;
+    if (sim.state === 'play' && !uiState.bare) camTo = clamp(riverPoint(sim.player.s, sim.player.d, H)[1] - H * 0.32, -SCROLL_UP * H, 0);
+    if (Math.abs(camTo - cam) > H * 0.5 || uiState.bare) cam = camTo; else cam += (camTo - cam) * Math.min(1, dt * 1.2);
     ctx.setTransform(scale, 0, 0, scale, ox, oy);
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();
+    ctx.translate(0, -cam);
     drawLand(ink);
     drawRiver(ink, sim.t);
     drawNearBank(ink);
@@ -337,6 +351,7 @@ export function createRiverArt(canvas) {
     things.sort((a, b) => a.s - b.s).forEach((th) => th.f());
     drawPorters(sim);
     drawTrees(ink);
+    ctx.translate(0, cam);
     ui.paperGrain(W, H);
     ctx.restore();
     ctx.setTransform(scale, 0, 0, scale, ox, oy);

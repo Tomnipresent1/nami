@@ -16,12 +16,21 @@ export const MAX_H = 1400;
 /** The picture's height for a screen of this shape (long side / short side). */
 export const heightFor = (aspect) => Math.round(clamp(RIVER_W * aspect, MIN_H, MAX_H));
 
-// the river's middle line, as fractions of the picture (u across, v down), traced from the print and Tom's route (research 13)
-const CL = [[0.02, -0.06], [0.10, 0.10], [0.15, 0.27], [0.27, 0.43], [0.49, 0.55], [0.63, 0.66], [0.70, 0.81], [0.74, 0.97], [0.78, 1.12], [0.84, 1.27]];
-const S_PER_SEG = 0.2;              // s from one point to the next; s = 0 at CL[1], s = 1 (the landing) at CL[6]
+// the river's middle line, as fractions of the picture (u across, v down), traced from the print and Tom's route (research 13).
+// A SCROLLER (v1.5.8, Tom: "maybe just the length of two back to back screens... like we have a birds eye view and are slowly
+// drifting down the river"): the print is the LOWER screen (v 0..1, unchanged); UP is a new screen of river above it (v -1..0),
+// winding down from the top right. The view follows the raft down and settles on the print at the landing.
+// (the print's first point moved in from the very edge, 0.02 -> 0.11: scrolling, you pass through there and were half off screen)
+const UP = [[0.74, -1.36], [0.70, -1.18], [0.62, -1.0], [0.47, -0.82], [0.32, -0.64], [0.2, -0.45], [0.14, -0.25]];
+const CL = [...UP, [0.11, -0.06], [0.10, 0.10], [0.15, 0.27], [0.27, 0.43], [0.49, 0.55], [0.63, 0.66], [0.70, 0.81], [0.74, 0.97], [0.78, 1.12], [0.84, 1.27]];
+const S_PER_SEG = 0.2;              // s from one point to the next; s = 0 at the print's CL[1], s = 1 (the landing) at its CL[6]
+/** Where you set off: near the top of the upper screen (s < 0 is the stretch above the print). */
+export const START_S = -1.05;
+/** How far the view can scroll up above the print (picture heights). */
+export const SCROLL_UP = 1;
 const cat = (a, b, c, d, t) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t * t + (-a + 3 * b - 3 * c + d) * t * t * t);
 function centreUV(s) {
-  const f = clamp(1 + s / S_PER_SEG, 0, CL.length - 1.0001), i = Math.floor(f), t = f - i;
+  const f = clamp(1 + UP.length + s / S_PER_SEG, 0, CL.length - 1.0001), i = Math.floor(f), t = f - i;
   const P = (k) => CL[clamp(k, 0, CL.length - 1)];
   return [cat(P(i - 1)[0], P(i)[0], P(i + 1)[0], P(i + 2)[0], t), cat(P(i - 1)[1], P(i)[1], P(i + 1)[1], P(i + 2)[1], t)];
 }
@@ -46,7 +55,7 @@ export const scaleAt = (s) => 0.6 + 0.4 * clamp(s, 0, 1.2);
 
 export const RTUNE = {
   // (v1.5.4, Tom: "far too slippy... you can't rush it, you have to go with the river"; not a race: everyone at one languid pace)
-  journeySecs: 80,          // top of the picture to the landing: the river's pace, the same for every raft, you included
+  journeySecs: 66,          // s per second = 1 / this: the river's pace, the same for every raft, you included (whole trip ~2 1/4 min)
   others: 4,                // other timber rafts on the river (drifting at the same pace, holding their lines)
   acrossSpeed: 0.11,        // river widths per second at most, poling across (keys or finger): a heavy raft, a pole on the riverbed
   pickUp: 0.9,              // how quickly it gathers way across (1/s): slow to get going
@@ -66,7 +75,7 @@ export const RTUNE = {
   liftSecs: 1.5,            // handing one box up to a porter
   porterSpeed: 30,          // picture units a second
 };
-export const REEDS = [{ s: 0.22, d: 0.06 }, { s: 0.40, d: 0.94 }, { s: 0.63, d: 0.07 }, { s: 0.80, d: 0.93 }];
+export const REEDS = [{ s: -0.78, d: 0.1 }, { s: -0.42, d: 0.9 }, { s: 0.22, d: 0.06 }, { s: 0.40, d: 0.94 }, { s: 0.63, d: 0.07 }, { s: 0.80, d: 0.93 }];
 export const REED_S = 0.05;                         // a reed bed's size (along, across)
 export const REED_D = 0.2;
 export const FERRY_S = 0.76;                        // the ferry crosses back and forth here
@@ -111,10 +120,10 @@ export class River {
 
   reset() {
     this.t = 0;
-    this.player = { s: 0, d: 0.5, vd: 0, yaw: 0, stopT: 0, inReed: -1, pole: 0, docked: false };
+    this.player = { s: START_S, d: 0.5, vd: 0, yaw: 0, stopT: 0, inReed: -1, pole: 0, docked: false };
     this.drag = null;
     this.others = [];
-    for (let i = 0; i < RTUNE.others; i++) this.spawnRaft(0.14 + i * 0.24 + this.rand() * 0.06);
+    for (let i = 0; i < RTUNE.others; i++) this.spawnRaft(START_S + 0.3 + i * 0.42 + this.rand() * 0.08);
     this.nextRaft = 9;
     this.ferry = { d: 0.2, dir: 1, waitT: 3 };
     this.boxes = RTUNE.boxes; this.lift = null;         // lift = { t, n }: a box on its way up to porter n
@@ -256,7 +265,7 @@ export class River {
         this.state = 'unload';
         if (scoring) { this.say('dock'); this.msg('TAP UNLOAD TO HAND UP A BOX', 6); }
       }
-      this.ink = Math.max(this.ink, 75 * clamp(p.s, 0, 1));
+      this.ink = Math.max(this.ink, 75 * clamp((p.s - START_S) / (1 - START_S), 0, 1));
     }
 
     // ---- the boxes going up to the porters, who carry them away along the bank ----
@@ -297,7 +306,7 @@ export class River {
       }
     }
     this.others = this.others.filter((o) => o.s < 1.6);
-    if ((this.nextRaft -= dt) <= 0) { this.spawnRaft(-0.12); this.nextRaft = 10 + this.rand() * 8; }
+    if ((this.nextRaft -= dt) <= 0) { this.spawnRaft(START_S - 0.15); this.nextRaft = 10 + this.rand() * 8; }
 
     // ---- the ferry goes back and forth across, resting at each bank ----
     const fy = this.ferry;

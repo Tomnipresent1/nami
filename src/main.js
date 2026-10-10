@@ -9,7 +9,7 @@ import { createGardenArt } from './gardenart.js';
 import { createLampArt } from './lampart.js';
 import { createRiverArt } from './riverart.js';
 import { input, tilt, setupInput, pollInput, recentreTilt, setSteerMode, requestTiltPermission } from './input.js';
-import { sfx, bridgeSfx, gardenSfx, lampSfx, riverSfx, unlock, setMuted, ambience, rain, wind, distantMusic } from './audio.js';
+import { sfx, bridgeSfx, gardenSfx, lampSfx, riverSfx, unlock, setMuted, ambience, rain, wind, distantMusic, sleepAudio } from './audio.js';
 import { waveAmp, T_GONE, VH as PICTURE_H } from './ocean.js';
 import { PRINTS, cardAt, drawAlbum } from './album.js';
 import { BUILD } from './version.js';
@@ -115,7 +115,10 @@ const taps = [];
 const pictureY = (clientY) => { const r = canvas.getBoundingClientRect(); return ((clientY - r.top) / (r.height || 1)) * PICTURE_H; };
 const pictureX = (clientX) => { const r = canvas.getBoundingClientRect(); return ((clientX - r.left) / (r.width || 1)) * cur.sim.W; };
 ['pointerdown', 'keydown'].forEach((ev) => addEventListener(ev, unlock, { passive: true }));
-document.addEventListener('visibilitychange', () => { if (document.hidden) cur.sim.pauseGame(); });
+// screen off / app in the background: pause, and silence the sound completely (v1.5.8); back again: the sound wakes (still paused)
+document.addEventListener('visibilitychange', () => { if (document.hidden) { cur.sim.pauseGame(); sleepAudio(true); } else sleepAudio(false); });
+addEventListener('pagehide', () => sleepAudio(true));
+addEventListener('pageshow', () => { if (!document.hidden) sleepAudio(false); });
 
 // ---- fill the screen: the picture is 600 tall and exactly as wide as the screen's shape needs ----
 function fit() {
