@@ -17,14 +17,17 @@ const GAP = 56;
 
 /**
  * Where each print's card sits on a picture W wide (and VH tall). The sideways prints share the top row, each card the screen's
- * own shape; the upright (portrait) prints sit in a second row underneath, in the same columns, upright cards (2:3) with their
- * words beside them (Tom, v1.5.2: room for about four there).
+ * own shape; the upright (portrait) prints sit in a second row underneath, in the same columns, with their words beside them
+ * (Tom, v1.5.2: room for about four there). An upright card is a sideways card turned on end, the same size (Tom, v1.5.3), so
+ * every card is a little smaller than before, just enough for both rows to fit on the screen without scrolling.
  */
+export const ROW2_GAP = 104;                 // from the bottom of a sideways card to the top of the upright row (room for its words)
 export function albumLayout(W) {
-  const n = PRINTS.filter((p) => !p.portrait).length;
-  const w = Math.min(440, (W - 140 - GAP * (n - 1)) / n), h = (w * VH) / W;
+  const n = PRINTS.filter((p) => !p.portrait).length, upright = PRINTS.some((p) => p.portrait);
+  const fit = upright ? (VH - 40 - CARD_TOP - ROW2_GAP) / (1 + VH / W) : 440;   // both rows end above the hint line at the bottom
+  const w = Math.min(440, fit, (W - 140 - GAP * (n - 1)) / n), h = (w * VH) / W;
   const x0 = (W - (n * w + (n - 1) * GAP)) / 2;
-  const row2 = CARD_TOP + h + 112, pw = Math.min((Math.min(150, VH - 50 - row2) * 2) / 3, (w + GAP) * 0.45), ph = pw * 1.5;
+  const row2 = CARD_TOP + h + ROW2_GAP, pw = h, ph = w;
   let a = 0, b = 0;
   return PRINTS.map((p) => {
     if (!p.portrait) return { x: x0 + a++ * (w + GAP), y: CARD_TOP, w, h };
