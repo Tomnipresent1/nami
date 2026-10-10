@@ -38,7 +38,9 @@ const VILLAGES = [
   { u: 0.88, v: -0.4, huts: [[0, 0, 1.15, 0.04], [-54, -26, 0.72, -0.1, 1], [26, -56, 0.66, 0.12], [-28, 46, 0.78, 0.07], [60, 18, 0.7, -0.06, 1], [10, 62, 0.62, 0.15]] },
   { u: 0.88, v: 0.07, huts: [[8, -6, 1.12, -0.05, 1], [-46, -50, 0.7, 0.1], [54, -34, 0.76, -0.12], [-60, 20, 0.66, 0.06, 1], [30, 48, 0.72, 0.09]] },
 ];
-const RED_ROOFS = true;                                   // two red roofs in each village, one at the landing (v1.5.25 trial; false = all thatch)
+// red roofs in the box red (v1.5.25 trial): the villages went back to all thatch (v1.5.26, Tom); the landing keeps its one red roof
+const VILLAGE_RED_ROOFS = false;
+const LANDING_RED_ROOF = true;
 const HUT_WALL = '#3a2a1f';                                // the huts' walls: dark enough to read against the brown ground (v1.5.21; was #6b5a48)
 // the near shore's forest (v1.5.17): mainly browns, a few oranges, a scattering of yellows
 const FOREST_BROWN = ['#7a4a2a', '#8b5a34', '#6c4226', '#94623a', '#83522e', '#a06a3c'];
@@ -260,8 +262,8 @@ export function createRiverArt(canvas) {
   // people, each its own loose, organic layout) ----------
   /** Where a village's huts stand (world x, y, size, a slight turn), from the top down so lower roofs overlap higher ones. */
   // [x, y, size, turn, red roof?]
-  const landingHuts = (h) => [[W * 0.15, h * 0.66, 2.2, 0, RED_ROOFS], [W * 0.27, h * 0.75, 2.2, 0, false], [W * 0.11, h * 0.88, 2.2, 0, false]];
-  const villageHuts = (h) => VILLAGES.flatMap((vg) => vg.huts.map(([dx, dy, k, rot, red]) => [W * vg.u + dx, h * vg.v + dy, k, rot, RED_ROOFS && !!red])).sort((a, b) => a[1] - b[1]);
+  const landingHuts = (h) => [[W * 0.15, h * 0.66, 2.2, 0, LANDING_RED_ROOF], [W * 0.27, h * 0.75, 2.2, 0, false], [W * 0.11, h * 0.88, 2.2, 0, false]];
+  const villageHuts = (h) => VILLAGES.flatMap((vg) => vg.huts.map(([dx, dy, k, rot, red]) => [W * vg.u + dx, h * vg.v + dy, k, rot, VILLAGE_RED_ROOFS && !!red])).sort((a, b) => a[1] - b[1]);
   function drawVillages(ink) {
     for (const [x, y, k, rot, red] of villageHuts(H)) hut(x, y, k, ink, rot, red ? BOX_COLOURS[0] : null);
   }
