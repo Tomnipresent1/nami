@@ -26,9 +26,9 @@ const UP = [[0.6, -1.74], [0.6, -1.56], [0.59, -1.36], [0.57, -1.18], [0.53, -1.
 const CL = [...UP, [0.23, -0.06], [0.23, 0.10], [0.27, 0.27], [0.36, 0.43], [0.5, 0.55], [0.63, 0.66], [0.70, 0.81], [0.74, 0.97], [0.78, 1.12], [0.84, 1.27]];
 const S_PER_SEG = 0.2;              // s from one point to the next; s = 0 at the print's CL[1], s = 1 (the landing) at its CL[6]
 /** Where you set off: near the top of the upper screen (s < 0 is the stretch above the print). */
-export const START_S = -1.12;
+export const START_S = -0.59;   // (v1.5.10, Tom: the trip a quarter shorter: you set off further down, the landing comes sooner)
 /** How far the view can scroll up above the print (picture heights). */
-export const SCROLL_UP = 1.25;   // (v1.5.9: a little more above the start, so the camera follows you from the first moment)
+export const SCROLL_UP = 0.76;   // the camera's top: you start ~0.32 of the way down it, so it follows you from the first moment
 const cat = (a, b, c, d, t) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t * t + (-a + 3 * b - 3 * c + d) * t * t * t);
 function centreUV(s) {
   const f = clamp(1 + UP.length + s / S_PER_SEG, 0, CL.length - 1.0001), i = Math.floor(f), t = f - i;
