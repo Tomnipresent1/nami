@@ -342,7 +342,9 @@ export class River {
     }
     if (d < 0) return;
     const T = RTUNE;
-    this.others.push({ s, d, d0: d, dTarget: d, phase: this.rand() * 6.28, wood: Math.floor(this.rand() * 6),
+    // (v1.5.24, Tom) each carries 3 or 4 boxes, each red, blue or yellow (0, 1, 2)
+    const cargo = Array.from({ length: this.rand() < 0.5 ? 3 : 4 }, () => Math.floor(this.rand() * 3));
+    this.others.push({ s, d, d0: d, dTarget: d, phase: this.rand() * 6.28, wood: Math.floor(this.rand() * 6), cargo,
       pole: this.rand() * 4, stopT: 0, passed: s < this.player.s, len: 0.85 + this.rand() * 0.35 });
   }
 }

@@ -55,7 +55,11 @@ const SHOW_PRINT_WOODS = false;                           // the print's dark wo
 const BOKASHI = 22;                                       // layers in the soft indigo fade along each bank
 // the other rafts' timber, each its own (v1.5.14, Tom: browns, ochres, khakis); yours keeps the 'log' colour
 const WOODS = ['#9a6136', '#8a6a3c', '#b08a4a', '#9c7b45', '#7d5a34', '#a8915c'];
-const SKIN = '#e6c8a2', YOU = '#a8452f', BOX = '#ead7a8';
+const SKIN = '#e6c8a2', YOU = '#a8452f';
+// the boxes on the rafts: red, blue and yellow, muted but vibrant (v1.5.24, Tom); yours are one of each, unloaded in this order
+const BOX_COLOURS = ['#b5482f', '#41679c', '#dba62f'];
+const BOX_EDGE = 'rgba(40, 26, 16, 0.75)';
+const YOUR_CARGO = [0, 1, 2];
 const ROBES = ['#2f3d5c', '#4a5468', '#3a3f4a', '#5b6650'];
 const PORTERS = [{ robe: '#3d6b5a', hat: true }, { robe: '#2f3d5c', hat: false }, { robe: '#6b5a48', hat: true }];
 // the dark woods: a dense stand of thin trunks along the top, as in the print
@@ -269,6 +273,8 @@ export function createRiverArt(canvas) {
 
 
   // ---------- people, rafts, the ferry ----------
+  /** Your boxes as the raft shows them: one colour each, null where a box has gone up (or is on its way up) to a porter. */
+  const yourBoxes = (sim) => { const gone = RTUNE.boxes - sim.boxes + (sim.lift ? 1 : 0); return YOUR_CARGO.map((c, i) => (i < gone ? null : c)); };
   function figure(x, y, k, robe, hat, lean = 0) {
     ctx.save(); ctx.translate(x, y); ctx.rotate(lean); ctx.scale(k, k);
     ctx.strokeStyle = '#2a2420'; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
@@ -281,7 +287,7 @@ export function createRiverArt(canvas) {
   /** A timber raft lying along the stream at s, d, poled from the back. yaw (radians, + = bow toward the far bank): it turns about
    *  its STERN, so the bow swings round toward where it is going: steered from the front (v1.5.7, Tom's trial; v1.5.5-v1.5.6
    *  turned about the bow, steered from the back, which felt off). PIVOT: +1 = turn about the stern, -1 = about the bow. */
-  function raft(s, d, len, pole, robe, boxes = 0, you = false, yaw = 0, wood = null) {
+  function raft(s, d, len, pole, robe, boxes = [], you = false, yaw = 0, wood = null) {
     const [x0, y0] = riverPoint(s, d, H), f = frame(s, H), k = scaleAt(s);
     const L = 120 * k * len, Wd = 15 * k;
     const turn = (f.nx * -f.ty + f.ny * f.tx) >= 0 ? 1 : -1, rot = Math.atan2(f.ty, f.tx) + turn * yaw, tx = Math.cos(rot), ty = Math.sin(rot);
@@ -296,11 +302,14 @@ export function createRiverArt(canvas) {
     for (let i = 1; i < 4; i++) { ctx.beginPath(); ctx.moveTo(-L / 2, -Wd / 2 + (Wd * i) / 4); ctx.lineTo(L / 2, -Wd / 2 + (Wd * i) / 4); ctx.stroke(); }
     ctx.strokeRect(-L / 2, -Wd / 2, L, Wd);
     ctx.beginPath(); ctx.moveTo(-L / 2 + 6, -Wd / 2); ctx.lineTo(-L / 2 + 6, Wd / 2); ctx.moveTo(L / 2 - 6, -Wd / 2); ctx.lineTo(L / 2 - 6, Wd / 2); ctx.stroke();
-    // the boxes (yours)
-    for (let i = 0; i < boxes; i++) {
-      const bx = -L * 0.05 + i * 17 * k;
-      ctx.fillStyle = BOX; ctx.fillRect(bx - 7 * k, -7 * k, 14 * k, 14 * k);
-      ctx.strokeStyle = '#7a6440'; ctx.lineWidth = 1; ctx.strokeRect(bx - 7 * k, -7 * k, 14 * k, 14 * k);
+    // the boxes: a list of colour numbers (null = a box already handed up: the rest keep their places). Yours start a little
+    // forward of the middle; the others' loads sit centred a touch forward, clear of the raftsman at the back
+    const first = you ? -L * 0.05 : L * 0.05 - ((boxes.length - 1) * 17 * k) / 2;
+    for (let i = 0; i < boxes.length; i++) {
+      if (boxes[i] == null) continue;
+      const bx = first + i * 17 * k;
+      ctx.fillStyle = BOX_COLOURS[boxes[i]]; ctx.fillRect(bx - 7 * k, -7 * k, 14 * k, 14 * k);
+      ctx.strokeStyle = BOX_EDGE; ctx.lineWidth = 1; ctx.strokeRect(bx - 7 * k, -7 * k, 14 * k, 14 * k);
     }
     ctx.restore();
     // the raftsman stands upright at the back, his pole reaching down into the water
@@ -333,7 +342,7 @@ export function createRiverArt(canvas) {
       const P = PORTERS[i];
       figure(x, y, k, P.robe, P.hat, q.state === 'reach' ? 0.25 : 0);
       if (q.state === 'carry' && !(lift && lift.n === i)) {     // the box on his shoulder
-        ctx.fillStyle = BOX; ctx.fillRect(x - 3, y - 47, 15, 13); ctx.strokeStyle = '#7a6440'; ctx.lineWidth = 1; ctx.strokeRect(x - 3, y - 47, 15, 13);
+        ctx.fillStyle = BOX_COLOURS[YOUR_CARGO[i]]; ctx.fillRect(x - 3, y - 47, 15, 13); ctx.strokeStyle = BOX_EDGE; ctx.lineWidth = 1; ctx.strokeRect(x - 3, y - 47, 15, 13);
       }
     });
     if (lift) {   // the box on its way up from the raft into his hands
@@ -341,7 +350,7 @@ export function createRiverArt(canvas) {
       const [rx, ry] = riverPoint(p.s, p.d, H), from = [rx + f.tx * slot, ry + f.ty * slot];
       const q = sim.porters[lift.n], to = [L[0] - 18 - lift.n * 26 + 3, L[1] + 10 + (lift.n % 2) * 9 - 40];
       const u = clamp(lift.t / (RTUNE.liftSecs * 0.6), 0, 1), x = from[0] + (to[0] - from[0]) * u, y = from[1] + (to[1] - from[1]) * u - Math.sin(u * Math.PI) * 30;
-      if (q.state !== 'gone') { ctx.fillStyle = BOX; ctx.fillRect(x - 7, y - 7, 14, 14); ctx.strokeStyle = '#7a6440'; ctx.lineWidth = 1; ctx.strokeRect(x - 7, y - 7, 14, 14); }
+      if (q.state !== 'gone') { ctx.fillStyle = BOX_COLOURS[YOUR_CARGO[lift.n]]; ctx.fillRect(x - 7, y - 7, 14, 14); ctx.strokeStyle = BOX_EDGE; ctx.lineWidth = 1; ctx.strokeRect(x - 7, y - 7, 14, 14); }
     }
   }
 
@@ -358,7 +367,7 @@ export function createRiverArt(canvas) {
     ctx.fillStyle = `rgba(234,215,168,${0.3 + 0.3 * pulse})`; ctx.beginPath(); ctx.arc(cx, cy, r + 10 + 6 * pulse, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = 'rgba(239,228,198,0.94)'; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
-    ctx.fillStyle = BOX; ctx.fillRect(cx - 13, cy - 26, 26, 24); ctx.strokeStyle = '#7a6440'; ctx.lineWidth = 1.5; ctx.strokeRect(cx - 13, cy - 26, 26, 24);
+    ctx.fillStyle = BOX_COLOURS[YOUR_CARGO[Math.min(2, RTUNE.boxes - sim.boxes)]]; ctx.fillRect(cx - 13, cy - 26, 26, 24); ctx.strokeStyle = BOX_EDGE; ctx.lineWidth = 1.5; ctx.strokeRect(cx - 13, cy - 26, 26, 24);
     ui.text('UNLOAD', cx, cy + 22, 14, INK, 'center');
     ui.text(sim.boxes + ' LEFT', cx, cy + r + 24, 13, MUTED, 'center');
     ctx.restore();
@@ -420,9 +429,9 @@ export function createRiverArt(canvas) {
     drawNearBank(ink);
     drawReeds(ink);
     // everything on the water, furthest (highest up the picture) first
-    const things = sim.others.map((o) => ({ s: o.s, f: () => raft(o.s, o.d, o.len, o.pole, ROBES[Math.floor(o.phase) % ROBES.length], 0, false, 0, WOODS[(o.wood || 0) % WOODS.length]) }));
+    const things = sim.others.map((o) => ({ s: o.s, f: () => raft(o.s, o.d, o.len, o.pole, ROBES[Math.floor(o.phase) % ROBES.length], o.cargo || [], false, 0, WOODS[(o.wood || 0) % WOODS.length]) }));
     if (SHOW_FERRY) things.push({ s: FERRY_S, f: () => ferry(sim.ferry) });
-    if (sim.state !== 'title') things.push({ s: sim.player.s, f: () => raft(sim.player.s, sim.player.d, 1.05, sim.player.pole, YOU, sim.boxes - (sim.lift ? 1 : 0), true, sim.player.yaw) });
+    if (sim.state !== 'title') things.push({ s: sim.player.s, f: () => raft(sim.player.s, sim.player.d, 1.05, sim.player.pole, YOU, yourBoxes(sim), true, sim.player.yaw) });
     things.sort((a, b) => a.s - b.s).forEach((th) => th.f());
     drawPorters(sim);
     drawTrees(ink);
