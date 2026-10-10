@@ -29,11 +29,16 @@ const AUTUMN = ['#d9792f', '#c4452a', '#e08a3c', '#b8392a', '#d26a2e', '#cf5a2a'
 const REED = '#8a877a';
 // [u across, v down (picture heights; < 0 = the stretch above the print), size]: placed clear of the river at every screen height
 // (v1.5.17: the near shore's huts and trees made way for the forest; these are the far shore's, and three below the landing)
-const MAPLES = [[0.42, 1.14, 1], [0.08, 1.18, 1.2], [0.3, 1.35, 1]];   // (v1.5.19: the far shore's are part of its forest now)
+// (v1.5.20: the far shore's and the three below the landing are part of the forest now)
+const MAPLES = [];
+// three little villages on the far shore, where Tom circled them (centres: u across, v down in picture heights), five huts each
+const VILLAGES = [{ u: 0.88, v: -0.4 }, { u: 0.88, v: -0.2 }, { u: 0.88, v: 0.07 }];
+const HUT_SPOTS = [[0, 0, 1.15], [-48, -38, 0.7], [44, -44, 0.75], [-44, 40, 0.7], [48, 34, 0.72]];   // [dx, dy (units), size]
+const PATH_BROWN = '#b98a5c';                             // the paths: a light brown (Tom, v1.5.20; they were pale grey)
 // the near shore's forest (v1.5.17): mainly browns, a few oranges, a scattering of yellows
 const FOREST_BROWN = ['#7a4a2a', '#8b5a34', '#6c4226', '#94623a', '#83522e', '#a06a3c'];
 const FOREST_ORANGE = ['#d9792f', '#c9692a', '#e08a3c'];
-const FOREST_YELLOW = ['#e3b53e', '#d9a632'];
+const FOREST_YELLOW = ['#f2bd1c', '#e8ac10'];   // (v1.5.20: a little more saturated, Tom)
 // three crown shapes: [dx, dy, radius, second colour?]
 const TREE_SHAPES = [
   [[-8, -22, 10, 1], [8, -23, 10, 1], [0, -31, 12, 0], [-6, -28, 8, 0]],
@@ -104,12 +109,6 @@ export function createRiverArt(canvas) {
     }
     ctx.globalAlpha = 1;
     }
-    // THE VILLAGE, up the stretch above the print on the far shore: a few thatched huts and a path, in a clearing in the forest
-    // (on the stretch you pass early in the trip: the camera starts at -0.67 H)
-    ctx.strokeStyle = C('rock', ink); ctx.lineWidth = 6; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(W * 0.72, H * -0.33); ctx.quadraticCurveTo(W * 0.85, H * -0.27, W * 1.02, H * -0.31); ctx.stroke();
-    hut(W * 0.95, H * -0.43, 0.75, ink); hut(W * 0.88, H * -0.36, 0.9, ink); hut(W * 0.96, H * -0.29, 0.7, ink); hut(W * 0.86, H * -0.22, 0.65, ink);
-    figure(W * 0.8, H * -0.3, 0.45, '#2f3d5c', true);
     if (!SHOW_PRINT_WOODS) return;
     // Zenko-ji's roofs up in the trees, top right
     roof(W * 0.8, H * 0.105, 64, '#5a2e2a', '#3d2220'); roof(W * 0.66, H * 0.13, 40, '#4a2a26', '#311c1a');
@@ -207,7 +206,7 @@ export function createRiverArt(canvas) {
     // the ferry hut, yellow thatch, by the landing: moved up from the bottom edge (Tom v1.5.13, research/delivery 18) so the
     // destination comes into view early on the way down
     hut(W * 0.27, H * 0.75, 2.2, ink);
-    pine(W * 0.93, H * 0.99, 0.9, ink);
+    // (v1.5.20: the red pine by the water, bottom right, removed: Tom)
   }
   function pine(x, y, k, ink, col = null) {
     ctx.strokeStyle = C('trunk', ink); ctx.lineWidth = 5 * k; ctx.lineCap = 'round';
@@ -232,9 +231,13 @@ export function createRiverArt(canvas) {
       for (let s = START_S - 0.8; s <= 2.3; s += 0.01) { const c = centre(s, h), d = Math.hypot(c[0] - tx, c[1] - ty); if (d < best) { best = d; bs = s; } }
       const c = centre(bs, h), f = frame(bs, h), across = (tx - c[0]) * f.nx + (ty - c[1]) * f.ny, out = Math.abs(across) - halfWidth(bs, h);
       if (out < 26 * k) continue;                              // in the water, or a crown over the water
-      if (across < 0 && ty > nearBottom) continue;             // the near shore's forest stops just above the landing hut
-      // (v1.5.19) the far shore too, except the village's clearing
-      if (across > 0 && tx > W * 0.72 && ty > -0.5 * h && ty < -0.16 * h) continue;
+      // the near shore: forest down to just above the landing hut, and again below the porters' ground (v1.5.20)
+      if (across < 0 && ty > nearBottom && ty < h * 0.93) continue;
+      // the far shore too (v1.5.19), except the villages' clearings and along their paths (v1.5.20)
+      // (tested on the crown, which stands ~28 units above the trunk's foot and is ~16 across: it must not cover a hut or a path)
+      const cy = ty - 28 * k, cr = 17 * k;
+      if (across > 0 && VILLAGES.some((vg) => Math.hypot(tx - W * vg.u, (cy - h * vg.v) * 1.15) < 78 + cr)) continue;
+      if ([pathA(h), pathB(h)].some((P) => { for (let q = 0; q <= 1; q += 0.04) { const [px, py] = quadAt(P, q); if (Math.hypot(tx - px, cy - py) < cr + 6 || Math.hypot(tx - px, ty - py) < 10) return true; } return false; })) continue;
       const pick = r(), col = pick < 0.8 ? FOREST_BROWN : pick < 0.93 ? FOREST_ORANGE : FOREST_YELLOW;   // 80% brown, 13% orange, 7% yellow
       trees.push({ x: tx, y: ty, k, c1: col[Math.floor(r() * col.length)], c2: col[Math.floor(r() * col.length)], v: Math.floor(r() * 3) });
     }
@@ -250,6 +253,29 @@ export function createRiverArt(canvas) {
     for (const [dx, dy, rr, two] of TREE_SHAPES[v]) {
       ctx.fillStyle = two ? c2 : c1; ctx.beginPath(); ctx.arc(x + dx * k, y + dy * k, rr * k, 0, Math.PI * 2); ctx.fill();
     }
+  }
+  // ---------- the villages on the far shore (v1.5.20, Tom's notes, research/delivery 23) ----------
+  /** The two paths (a light brown): one from the river's edge across between the top two villages, one down the shore between the
+   *  lower two. As world points [x, y]. */
+  const pathA = (h) => [[W * 0.72, h * -0.33], [W * 0.85, h * -0.27], [W * 1.02, h * -0.31]];
+  const pathB = (h) => { const [a, b] = [VILLAGES[1], VILLAGES[2]]; return [[W * a.u - 6, h * a.v + 34], [W * (a.u - 0.06), h * (a.v + b.v) / 2], [W * b.u - 4, h * b.v - 34]]; };
+  const quadAt = ([p, q, r], u) => [(1 - u) ** 2 * p[0] + 2 * (1 - u) * u * q[0] + u * u * r[0], (1 - u) ** 2 * p[1] + 2 * (1 - u) * u * q[1] + u * u * r[1]];
+  function drawVillages(ink, t) {
+    ctx.strokeStyle = PATH_BROWN; ctx.lineWidth = 6; ctx.lineCap = 'round';
+    for (const P of [pathA(H), pathB(H)]) { ctx.beginPath(); ctx.moveTo(...P[0]); ctx.quadraticCurveTo(...P[1], ...P[2]); ctx.stroke(); }
+    VILLAGES.forEach((vg, n) => {
+      const cx = W * vg.u, cy = H * vg.v;
+      // five huts, the first a little bigger, drawn from the top down so lower roofs overlap higher ones
+      HUT_SPOTS.map(([dx, dy, k]) => [cx + dx, cy + dy, k]).sort((a, b) => a[1] - b[1]).forEach(([x, y, k]) => hut(x, y, k, ink));
+      // two villagers strolling slow loops between the huts
+      for (let i = 0; i < 2; i++) {
+        const a = t * 0.16 * (i ? -1 : 1) + n * 2.1 + i * 3.1;
+        figure(cx + Math.cos(a) * 30, cy + 20 + Math.sin(a) * 14, 0.42, ROBES[(n + i * 2) % ROBES.length], i === 0);
+      }
+    });
+    // and someone walking the path between the lower two villages, there and back
+    const u = 0.5 - 0.5 * Math.cos(t * 2 * Math.PI / 40), [wx, wy] = quadAt(pathB(H), 0.1 + 0.8 * u);
+    figure(wx, wy, 0.42, '#5b6650', true);
   }
   /** A round autumn tree (a maple, say): a short trunk and a crown of overlapping blobs in two leaf colours. */
   function maple(x, y, k, c1, c2, ink) {
@@ -411,10 +437,12 @@ export function createRiverArt(canvas) {
     let camTo = 0;
     if (!uiState.bare && sim.state !== 'title') camTo = sim.state === 'play' ? clamp(riverPoint(sim.player.s, sim.player.d, H)[1] - H * 0.32, -SCROLL_UP * H, camEnd(H)) : camEnd(H);
     if (Math.abs(camTo - cam) > H * 0.5 || uiState.bare) cam = camTo; else cam += (camTo - cam) * Math.min(1, dt * 1.2);
+    if (Number.isFinite(uiState.camAt)) cam = uiState.camAt;   // (for tests and whole-river pictures: point the camera anywhere)
     ctx.setTransform(scale, 0, 0, scale, ox, oy);
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();
     ctx.translate(0, -cam);
     drawLand(ink);
+    drawVillages(ink, sim.t);
     drawRiver(ink, sim.t);
     drawNearBank(ink);
     drawReeds(ink);
