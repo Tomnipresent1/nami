@@ -24,7 +24,6 @@ const LAYERS = {
   pine: ['#d4d8c6', '#3f6a48', 25, 75],
   trunk: ['#d6ccbc', '#6b5640', 20, 70],
 };
-const START_INK = 30;
 const BOKASHI = 22;                                       // layers in the soft indigo fade along each bank
 const SKIN = '#e6c8a2', YOU = '#a8452f', BOX = '#ead7a8';
 const ROBES = ['#2f3d5c', '#4a5468', '#3a3f4a', '#5b6650'];
@@ -36,7 +35,7 @@ const RIPPLES = Array.from({ length: 46 }, (_, i) => ({ s: (i * 0.618034) % 1, d
 export function createRiverArt(canvas) {
   const ui = createUI(canvas), ctx = ui.ctx;
   const W = RIVER_W;
-  let H = 1200, scale = 1, ox = 0, oy = 0, artInk = 100, lastT = 0;
+  let H = 1200, scale = 1, ox = 0, oy = 0, lastT = 0;
 
   function resize() {
     const cssH = canvas.clientHeight || window.innerHeight, cssW = canvas.clientWidth || window.innerWidth;
@@ -198,11 +197,14 @@ export function createRiverArt(canvas) {
     if (hat) { ctx.fillStyle = '#d9bb5f'; ctx.beginPath(); ctx.moveTo(-9, -35); ctx.lineTo(0, -42); ctx.lineTo(9, -35); ctx.closePath(); ctx.fill(); }
     ctx.restore();
   }
-  /** A timber raft lying along the stream at s, d, poled from the back. */
-  function raft(s, d, len, pole, robe, boxes = 0, you = false) {
-    const [x, y] = riverPoint(s, d, H), f = frame(s, H), k = scaleAt(s);
+  /** A timber raft lying along the stream at s, d, poled from the back. yaw (radians, + = bow toward the far bank): it turns about
+   *  its BOW, so the stern swings out, as a raft steered from the back does (v1.5.5). */
+  function raft(s, d, len, pole, robe, boxes = 0, you = false, yaw = 0) {
+    const [x0, y0] = riverPoint(s, d, H), f = frame(s, H), k = scaleAt(s);
     const L = 120 * k * len, Wd = 15 * k;
-    ctx.save(); ctx.translate(x, y); ctx.rotate(Math.atan2(f.ty, f.tx));
+    const turn = (f.nx * -f.ty + f.ny * f.tx) >= 0 ? 1 : -1, rot = Math.atan2(f.ty, f.tx) + turn * yaw, tx = Math.cos(rot), ty = Math.sin(rot);
+    const bow = [x0 + f.tx * L * 0.35, y0 + f.ty * L * 0.35], x = bow[0] - tx * L * 0.35, y = bow[1] - ty * L * 0.35;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
     // a faint wake
     ctx.strokeStyle = '#eef1ee'; ctx.globalAlpha = 0.5; ctx.lineWidth = 1.3;
     ctx.beginPath(); ctx.moveTo(-L / 2 - 4, -Wd / 2 - 2); ctx.lineTo(-L / 2 - 30 * k, -Wd / 2 - 7 * k); ctx.moveTo(-L / 2 - 4, Wd / 2 + 2); ctx.lineTo(-L / 2 - 30 * k, Wd / 2 + 7 * k); ctx.stroke();
@@ -220,14 +222,14 @@ export function createRiverArt(canvas) {
     }
     ctx.restore();
     // the raftsman stands upright at the back, his pole reaching down into the water
-    const back = [x - f.tx * L * 0.38, y - f.ty * L * 0.38];
+    const back = [x - tx * L * 0.38, y - ty * L * 0.38];
     const sw = Math.sin(pole * 2.2);
     ctx.strokeStyle = '#4e3b29'; ctx.lineWidth = 1.6 * k + 0.4;
-    ctx.beginPath(); ctx.moveTo(back[0] - f.tx * 40 * k + 10 * k * sw, back[1] - 44 * k - f.ty * 20 * k); ctx.lineTo(back[0] + f.tx * 34 * k - 6 * k * sw, back[1] + 10 * k + f.ty * 16 * k); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(back[0] - tx * 40 * k + 10 * k * sw, back[1] - 44 * k - ty * 20 * k); ctx.lineTo(back[0] + tx * 34 * k - 6 * k * sw, back[1] + 10 * k + ty * 16 * k); ctx.stroke();
     figure(back[0], back[1] + 3 * k, k * (you ? 1.05 : 0.95), robe, !you || true, 0.12 * sw);
     if (you) {   // a soft ring so you can always find yourself
       ctx.strokeStyle = 'rgba(168,69,47,0.55)'; ctx.lineWidth = 1.6;
-      ctx.beginPath(); ctx.ellipse(x, y, L * 0.62, 16 * k + 6, Math.atan2(f.ty, f.tx), 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(x, y, L * 0.62, 16 * k + 6, rot, 0, Math.PI * 2); ctx.stroke();
     }
   }
   function ferry(fy) {
@@ -318,9 +320,7 @@ export function createRiverArt(canvas) {
     // fit the upright picture into the canvas (on a sideways screen it stands in the middle on plain paper)
     scale = Math.min(canvas.width / W, canvas.height / H); ox = (canvas.width - W * scale) / 2; oy = (canvas.height - H * scale) / 2;
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = PAPER; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    const target = sim.state === 'title' || sim.state === 'complete' ? 100 : sim.inkShown;
-    artInk += (target - artInk) * Math.min(1, dt * (sim.state === 'play' ? 6 : 1.4));
-    const ink = START_INK + artInk * (1 - START_INK / 100);
+    const ink = 100;                    // (v1.5.5, Tom: no inking-in on this print: full colour from the start)
 
     ctx.setTransform(scale, 0, 0, scale, ox, oy);
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();
@@ -331,7 +331,7 @@ export function createRiverArt(canvas) {
     // everything on the water, furthest (highest up the picture) first
     const things = sim.others.map((o) => ({ s: o.s, f: () => raft(o.s, o.d, o.len, o.pole, ROBES[Math.floor(o.phase) % ROBES.length]) }));
     if (SHOW_FERRY) things.push({ s: FERRY_S, f: () => ferry(sim.ferry) });
-    if (sim.state !== 'title') things.push({ s: sim.player.s, f: () => raft(sim.player.s, sim.player.d, 1.05, sim.player.pole, YOU, sim.boxes - (sim.lift ? 1 : 0), true) });
+    if (sim.state !== 'title') things.push({ s: sim.player.s, f: () => raft(sim.player.s, sim.player.d, 1.05, sim.player.pole, YOU, sim.boxes - (sim.lift ? 1 : 0), true, sim.player.yaw) });
     things.sort((a, b) => a.s - b.s).forEach((th) => th.f());
     drawPorters(sim);
     drawTrees(ink);
@@ -340,7 +340,6 @@ export function createRiverArt(canvas) {
     ctx.setTransform(scale, 0, 0, scale, ox, oy);
     if (uiState.bare) return;
     if (sim.state !== 'title') {
-      ui.inkBar(sim.inkShown / 100);
       message(sim.message);
       drawUnloadButton(sim, now / 1000);
       if (sim.state === 'complete') drawComplete(sim);

@@ -52,6 +52,10 @@ export const RTUNE = {
   pickUp: 1.5,              // how quickly it gathers way across (1/s): slow to get going
   settle: 2.8,              // ... and how quickly the water stops it when you stop poling (1/s): no sliding on
   fingerFollow: 14, aimLead: 0.08,   // the finger is a trackpad, like the bridge's
+  // steered from the back (v1.5.5, Tom: it moved sideways as a block): poling swings the STERN out at once and the raft turns
+  // about its bow, then it gathers way across in the direction it now points; let go and it straightens
+  maxYaw: 0.35,             // the most it turns from the line of the river (radians, about 20 degrees)
+  yawRate: 3.5,             // how quickly the stern swings round (1/s)
   bodyS: 0.05, bodyD: 0.16, // how close counts as bumping another raft (along, across)
   bumpStop: 1.1,
   reedSlow: 0.5,
@@ -105,7 +109,7 @@ export class River {
 
   reset() {
     this.t = 0;
-    this.player = { s: 0, d: 0.5, vd: 0, stopT: 0, inReed: -1, pole: 0, docked: false };
+    this.player = { s: 0, d: 0.5, vd: 0, yaw: 0, stopT: 0, inReed: -1, pole: 0, docked: false };
     this.drag = null;
     this.others = [];
     for (let i = 0; i < RTUNE.others; i++) this.spawnRaft(0.14 + i * 0.24 + this.rand() * 0.06);
@@ -223,6 +227,9 @@ export class River {
       // the last stretch: the current eases and draws you in to the landing on the near bank
       const landing = smooth((p.s - T.landingFrom) / (1 - T.landingFrom));
       if (landing > 0) want = want * (1 - 0.6 * landing) - 0.5 * landing;
+      // the stern swings first (yaw, + = bow toward the far bank), then the raft gathers way across
+      const yawTo = clamp(want / T.acrossSpeed, -1, 1) * T.maxYaw;
+      p.yaw += (yawTo - p.yaw) * Math.min(1, dt * T.yawRate);
       const gathering = Math.abs(want) > Math.abs(p.vd) && want * p.vd >= 0;
       p.vd += (want - p.vd) * Math.min(1, dt * (gathering ? T.pickUp : T.settle));
       p.d = clamp(p.d + p.vd * dt, 0, 1);
@@ -240,7 +247,7 @@ export class River {
       p.s = Math.min(1, p.s + pace * dt);
 
       if (p.s >= 0.999 && p.d < 0.2) {
-        p.s = 1; p.vd = 0; p.docked = true; this.drag = null;
+        p.s = 1; p.vd = 0; p.yaw = 0; p.docked = true; this.drag = null;
         this.state = 'unload';
         if (scoring) { this.say('dock'); this.msg('TAP UNLOAD TO HAND UP A BOX', 6); }
       }
