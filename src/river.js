@@ -60,6 +60,7 @@ export const scaleAt = (s) => 0.6 + 0.4 * clamp(s, 0, 1.2);
 
 export const RTUNE = {
   // (v1.5.4, Tom: "far too slippy... you can't rush it, you have to go with the river"; not a race: everyone at one languid pace)
+  easeIn: 3,                // seconds for the raft (and the camera following it) to come up to the river's pace from a standstill (v1.5.22)
   journeySecs: 43,          // s per second = 1 / this: the river's pace, the same for every raft, you included (whole trip ~70 s)
   others: 4,                // other timber rafts on the river (drifting at the same pace, holding their lines)
   acrossSpeed: 0.085,       // river widths per second at most (v1.5.14: a little slower again, was 0.11), poling across (keys or finger): a heavy raft, a pole on the riverbed
@@ -125,6 +126,7 @@ export class River {
 
   reset() {
     this.t = 0;
+    this.tripT = 0;                                       // seconds since setting off (the gentle start)
     this.player = { s: START_S, d: 0.5, vd: 0, yaw: 0, stopT: 0, inReed: -1, pole: 0, docked: false };
     this.drag = null;
     this.others = [];
@@ -256,7 +258,9 @@ export class River {
       p.pole += dt * (0.8 + Math.abs(p.vd) * 2);
 
       // the current: one steady pace for everyone (v1.5.4), slower in the reeds; it eases at the landing
-      let pace = base;
+      // (v1.5.22, Tom: it started too abruptly) setting off, the raft gathers way gently from a standstill
+      this.tripT += dt;
+      let pace = base * smooth(this.tripT / T.easeIn);
       let inReed = -1;
       REEDS.forEach((r, i) => { if (Math.abs(p.s - r.s) < REED_S && Math.abs(p.d - r.d) < REED_D) inReed = i; });
       if (inReed >= 0) { pace *= T.reedSlow; if (inReed !== p.inReed) { this.stats.reeds++; if (scoring) this.say('reed'); } }
