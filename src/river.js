@@ -81,7 +81,8 @@ export const RTUNE = {
   liftSecs: 1.5,            // handing one box up to a porter
   porterSpeed: 30,          // picture units a second
 };
-export const REEDS = [{ s: -0.78, d: 0.1 }, { s: -0.42, d: 0.9 }, { s: 0.22, d: 0.06 }, { s: 0.40, d: 0.94 }, { s: 0.63, d: 0.07 }, { s: 0.80, d: 0.93 }];
+// (v1.5.23, Tom: the rushes slowed the raft down: none now; the rules for them stay, should any come back)
+export const REEDS = [];
 export const REED_S = 0.05;                         // a reed bed's size (along, across)
 export const REED_D = 0.2;
 export const FERRY_S = 0.76;                        // the ferry crosses back and forth here

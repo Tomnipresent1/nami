@@ -206,21 +206,12 @@ export function createRiverArt(canvas) {
     for (const t of forestFor(H)) if (t.y > cam - 90 && t.y < cam + H + 20) tree(t, ink);
     // autumn trees on the far shore, and a few below the landing (v1.5.16)
     MAPLES.forEach(([u, v, k], i) => maple(W * u, H * v, k, AUTUMN[i % AUTUMN.length], AUTUMN[(i + 3) % AUTUMN.length], ink));
-    pine(W * 0.1, H * 0.86, 1.15, ink);
-    willow(W * 0.17, H * 0.7, ink);
-    // the ferry hut, yellow thatch, by the landing: moved up from the bottom edge (Tom v1.5.13, research/delivery 18) so the
-    // destination comes into view early on the way down
-    hut(W * 0.27, H * 0.75, 2.2, ink);
+    // the huts at the landing, yellow thatch: the ferry hut (moved up from the bottom edge, Tom v1.5.13) and, where the tall pine
+    // and the willow stood, two more the same size (v1.5.23, Tom, research/delivery 28)
+    for (const [x, y, k] of landingHuts(H)) hut(x, y, k, ink);
     // (v1.5.20: the red pine by the water, bottom right, removed: Tom)
   }
-  function pine(x, y, k, ink, col = null) {
-    ctx.strokeStyle = C('trunk', ink); ctx.lineWidth = 5 * k; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(x, y); ctx.bezierCurveTo(x + 18 * k, y - 80 * k, x - 20 * k, y - 140 * k, x + 6 * k, y - 210 * k); ctx.stroke();
-    ctx.fillStyle = col || C('pine', ink);
-    for (const [dx, dy, w] of [[6, -210, 46], [-26, -170, 40], [24, -150, 38], [-10, -118, 34], [20, -95, 28]]) {
-      ctx.beginPath(); ctx.ellipse(x + dx * k, y + dy * k, w * k, 9 * k, -0.08, 0, Math.PI * 2); ctx.fill();
-    }
-  }
+
   // ---------- the forest on the near shore ----------
   let forest = null;
   /** Where the forest's trees stand for this picture height: a jittered grid over the near shore, each tree kept clear of the water
@@ -242,7 +233,7 @@ export function createRiverArt(canvas) {
       // (tested on the crown, which stands ~28 units above the trunk's foot and is ~16 across: it must not cover a hut or a path)
       const cy = ty - 28 * k, cr = 17 * k;
       // a clearing that hugs each hut (so the villages' edges are as loose as their layouts)
-      if (villageHuts(h).some(([hx, hy, hk]) => Math.hypot(tx - hx, cy - (hy - 4)) < 30 * hk + cr || Math.hypot(tx - hx, ty - hy) < 20 * hk)) continue;
+      if ([...villageHuts(h), ...landingHuts(h)].some(([hx, hy, hk]) => Math.hypot(tx - hx, cy - (hy - 4)) < 30 * hk + cr || Math.hypot(tx - hx, ty - hy) < 20 * hk)) continue;
       const pick = r(), col = pick < 0.8 ? FOREST_BROWN : pick < 0.93 ? FOREST_ORANGE : FOREST_YELLOW;   // 80% brown, 13% orange, 7% yellow
       trees.push({ x: tx, y: ty, k, c1: col[Math.floor(r() * col.length)], c2: col[Math.floor(r() * col.length)], v: Math.floor(r() * 3) });
     }
@@ -262,6 +253,7 @@ export function createRiverArt(canvas) {
   // ---------- the villages on the far shore (v1.5.20, Tom's notes, research/delivery 23; v1.5.22: two villages, no paths, no
   // people, each its own loose, organic layout) ----------
   /** Where a village's huts stand (world x, y, size, a slight turn), from the top down so lower roofs overlap higher ones. */
+  const landingHuts = (h) => [[W * 0.15, h * 0.66, 2.2], [W * 0.27, h * 0.75, 2.2], [W * 0.11, h * 0.88, 2.2]];
   const villageHuts = (h) => VILLAGES.flatMap((vg) => vg.huts.map(([dx, dy, k, rot]) => [W * vg.u + dx, h * vg.v + dy, k, rot])).sort((a, b) => a[1] - b[1]);
   function drawVillages(ink) {
     for (const [x, y, k, rot] of villageHuts(H)) hut(x, y, k, ink, rot);
@@ -274,15 +266,7 @@ export function createRiverArt(canvas) {
       ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x + dx * k, y + dy * k, r * k, 0, Math.PI * 2); ctx.fill();
     }
   }
-  function willow(x, y, ink) {
-    ctx.strokeStyle = C('trunk', ink); ctx.lineWidth = 6;
-    ctx.beginPath(); ctx.moveTo(x - 40, y); ctx.quadraticCurveTo(x - 10, y - 40, x + 20, y - 90); ctx.stroke();
-    ctx.strokeStyle = AUTUMN[2]; ctx.lineWidth = 1;
-    for (let i = 0; i < 26; i++) {
-      const a = (i / 25) * Math.PI, sx = x + 20 + Math.cos(a) * 46, sy = y - 90 - Math.sin(a) * 20;
-      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.quadraticCurveTo(sx + 4, sy + 40, sx + 2, sy + 70 + (i % 4) * 8); ctx.stroke();
-    }
-  }
+
 
   // ---------- people, rafts, the ferry ----------
   function figure(x, y, k, robe, hat, lean = 0) {
