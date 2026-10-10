@@ -3,7 +3,7 @@
 // the temple roofs up in the trees, timber rafts poled down the stream, a ferry crossing, pines and a willow on the near bank.
 // The picture is RIVER_W wide and sim.H tall; on a sideways screen (the PC, or the album card) it sits upright in the middle.
 import { clamp } from './ocean.js';
-import { RIVER_W, RTUNE, START_S, SCROLL_UP, REEDS, REED_S, REED_D, FERRY_S, SHOW_FERRY, RIVER_PAUSE_ROWS, DONE_CHOICES, DONE_WAIT, frame, riverPoint, scaleAt,
+import { RIVER_W, RTUNE, START_S, SCROLL_UP, camEnd, REEDS, REED_S, REED_D, FERRY_S, SHOW_FERRY, RIVER_PAUSE_ROWS, DONE_CHOICES, DONE_WAIT, frame, riverPoint, scaleAt,
   pauseRowY, doneButton, unloadButton } from './river.js';
 import { createUI, inked, PAPER, INK, MUTED, SEAL } from './ui.js';
 import { BUILD } from './version.js';
@@ -56,7 +56,7 @@ export function createRiverArt(canvas) {
   const C = (name, ink) => inked(LAYERS[name], ink);
 
   // ---------- the river's outline ----------
-  function bankLine(d, s0 = START_S - 0.75, s1 = 1.75, n = 220) {
+  function bankLine(d, s0 = START_S - 0.75, s1 = 2.3, n = 260) {
     const pts = [];
     for (let i = 0; i <= n; i++) { const s = s0 + ((s1 - s0) * i) / n; pts.push(riverPoint(s, d, H)); }
     return pts;
@@ -67,7 +67,7 @@ export function createRiverArt(canvas) {
   function drawLand(ink) {
     // fields on the far bank, the whole way down (both screens: the scroller's upper stretch and the print below it)
     const top = -SCROLL_UP * H;
-    ctx.fillStyle = C('field', ink); ctx.fillRect(0, top - 60, W, H - top + 120);
+    ctx.fillStyle = C('field', ink); ctx.fillRect(0, top - 60, W, 1.6 * H - top + 120);
     // the dark woods: a band across the print's top, reaching up into the stretch above (no sky: we look down from above)
     const wTop = (x) => H * (-0.2 + 0.04 * Math.sin(x / 61)) + 10 * Math.sin(x / 17);
     ctx.fillStyle = C('woods', ink);
@@ -129,9 +129,9 @@ export function createRiverArt(canvas) {
     ctx.strokeStyle = '#eef1ee'; ctx.lineWidth = 1.4;
     for (const r of RIPPLES) {
       // (they run a little faster than the rafts, v1.5.13: at the rafts' own pace the water looked still)
-      const span = 1.3 - START_S, s = ((r.s * span + t / RTUNE.journeySecs * FLOW) % span) + START_S - 0.15;
+      const span = 1.75 - START_S, s = ((r.s * span + t / RTUNE.journeySecs * FLOW) % span) + START_S - 0.15;
       const a = riverPoint(s, r.d, H), b = riverPoint(s + r.len, r.d, H);
-      ctx.globalAlpha = 0.35 * clamp(Math.min(s - START_S + 0.15, 1.15 - s) * 6, 0, 1);
+      ctx.globalAlpha = 0.35 * clamp(Math.min(s - START_S + 0.15, 1.6 - s) * 6, 0, 1);
       ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
     }
     ctx.restore();
@@ -153,7 +153,7 @@ export function createRiverArt(canvas) {
   // the near bank: everything on the bottom-left side of the river
   function drawNearBank(ink) {
     const near = bankLine(0);
-    ctx.beginPath(); trace(near); ctx.lineTo(-60, H + 60); ctx.lineTo(-60, -SCROLL_UP * H - 120); ctx.closePath();
+    ctx.beginPath(); trace(near); ctx.lineTo(-60, 1.7 * H); ctx.lineTo(-60, -SCROLL_UP * H - 120); ctx.closePath();
     const g = ctx.createLinearGradient(0, H * 0.5, W * 0.5, H);
     g.addColorStop(0, C('grass', ink)); g.addColorStop(0.55, C('grass', ink)); g.addColorStop(1, C('ground', ink));
     ctx.fillStyle = g; ctx.fill();
@@ -338,8 +338,9 @@ export function createRiverArt(canvas) {
 
     // the view follows your raft down the river (v1.5.8): it keeps you about a third of the way down the screen, easing along,
     // and settles on the print itself at the landing. Behind the album card and at the end it shows the print.
+    // (v1.5.15, Tom: keep scrolling until the landing is in the middle of the screen; it rests there while you unload)
     let camTo = 0;
-    if (sim.state === 'play' && !uiState.bare) camTo = clamp(riverPoint(sim.player.s, sim.player.d, H)[1] - H * 0.32, -SCROLL_UP * H, 0);
+    if (!uiState.bare && sim.state !== 'title') camTo = sim.state === 'play' ? clamp(riverPoint(sim.player.s, sim.player.d, H)[1] - H * 0.32, -SCROLL_UP * H, camEnd(H)) : camEnd(H);
     if (Math.abs(camTo - cam) > H * 0.5 || uiState.bare) cam = camTo; else cam += (camTo - cam) * Math.min(1, dt * 1.2);
     ctx.setTransform(scale, 0, 0, scale, ox, oy);
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();

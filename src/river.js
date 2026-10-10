@@ -25,12 +25,14 @@ export const heightFor = (aspect) => Math.round(clamp(RIVER_W * aspect, MIN_H, M
 // (v1.5.14, Tom: further toward the centre and a harder curve: down the right of centre, a tight swing left, then back right to
 // the landing, which stays where it was)
 const UP = [[0.63, -1.74], [0.63, -1.56], [0.63, -1.36], [0.63, -1.18], [0.64, -1.0], [0.65, -0.82], [0.64, -0.64], [0.6, -0.45], [0.43, -0.25]];
-const CL = [...UP, [0.31, -0.06], [0.29, 0.10], [0.32, 0.27], [0.5, 0.41], [0.65, 0.53], [0.7, 0.67], [0.70, 0.81], [0.72, 0.97], [0.74, 1.12], [0.76, 1.27]];
+const CL = [...UP, [0.31, -0.06], [0.29, 0.10], [0.32, 0.27], [0.5, 0.41], [0.65, 0.53], [0.7, 0.67], [0.70, 0.81], [0.72, 0.97], [0.74, 1.12], [0.76, 1.27], [0.78, 1.42], [0.8, 1.57]];
 const S_PER_SEG = 0.2;              // s from one point to the next; s = 0 at the print's CL[1], s = 1 (the landing) at its CL[6]
 /** Where you set off: near the top of the upper screen (s < 0 is the stretch above the print). */
 export const START_S = -0.5;   // (Tom: trip shorter: v1.5.10 a quarter, v1.5.11 to ~70 s like the other prints)
 /** How far the view can scroll up above the print (picture heights). */
-export const SCROLL_UP = 0.67;   // the camera's top: you start ~0.32 of the way down it, so it follows you from the first moment
+export const SCROLL_UP = 0.67;
+/** Where the camera comes to rest (v1.5.15, Tom): the landing in the middle of the screen, a little below the print's own frame. */
+export const camEnd = (H) => riverPoint(1, 0.5, H)[1] - H * 0.5;   // the camera's top: you start ~0.32 of the way down it, so it follows you from the first moment
 const cat = (a, b, c, d, t) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t * t + (-a + 3 * b - 3 * c + d) * t * t * t);
 function centreUV(s) {
   const f = clamp(1 + UP.length + s / S_PER_SEG, 0, CL.length - 1.0001), i = Math.floor(f), t = f - i;
