@@ -3,7 +3,7 @@
 // the temple roofs up in the trees, timber rafts poled down the stream, a ferry crossing, pines and a willow on the near bank.
 // The picture is RIVER_W wide and sim.H tall; on a sideways screen (the PC, or the album card) it sits upright in the middle.
 import { clamp } from './ocean.js';
-import { RIVER_W, RTUNE, START_S, SCROLL_UP, camEnd, REEDS, REED_S, REED_D, FERRY_S, SHOW_FERRY, RIVER_PAUSE_ROWS, DONE_CHOICES, DONE_WAIT, frame, riverPoint, scaleAt,
+import { RIVER_W, RTUNE, START_S, SCROLL_UP, camEnd, centre, halfWidth, REEDS, REED_S, REED_D, FERRY_S, SHOW_FERRY, RIVER_PAUSE_ROWS, DONE_CHOICES, DONE_WAIT, frame, riverPoint, scaleAt,
   pauseRowY, doneButton, unloadButton } from './river.js';
 import { createUI, inked, PAPER, INK, MUTED, SEAL } from './ui.js';
 import { BUILD } from './version.js';
@@ -28,9 +28,19 @@ const LAYERS = {
 const AUTUMN = ['#d9792f', '#c4452a', '#e08a3c', '#b8392a', '#d26a2e', '#cf5a2a'];
 const REED = '#8a877a';
 // [u across, v down (picture heights; < 0 = the stretch above the print), size]: placed clear of the river at every screen height
-const NEAR_HUTS = [[0.08, -0.4, 0.9], [0.07, -0.12, 0.8], [0.06, 0.2, 0.75], [0.1, 0.45, 0.9], [0.2, 1.05, 1], [0.36, 1.22, 0.9]];
-const MAPLES = [[0.2, -0.6, 1], [0.15, -0.25, 0.8], [0.05, 0.02, 0.9], [0.06, 0.33, 0.8], [0.05, 0.62, 1.1], [0.42, 1.14, 1], [0.08, 1.18, 1.2],
-  [0.3, 1.35, 1], [0.9, -0.42, 1], [0.86, -0.95, 0.9], [0.8, -0.3, 0.8], [0.95, -0.15, 1], [0.96, 0.5, 0.8], [0.9, 0.15, 1]];
+// (v1.5.17: the near shore's huts and trees made way for the forest; these are the far shore's, and three below the landing)
+const MAPLES = [[0.42, 1.14, 1], [0.08, 1.18, 1.2], [0.3, 1.35, 1], [0.9, -0.42, 1], [0.86, -0.95, 0.9], [0.8, -0.3, 0.8], [0.95, -0.15, 1],
+  [0.96, 0.5, 0.8], [0.9, 0.15, 1]];
+// the near shore's forest (v1.5.17): mainly browns, a few oranges, a scattering of yellows
+const FOREST_BROWN = ['#7a4a2a', '#8b5a34', '#6c4226', '#94623a', '#83522e', '#a06a3c'];
+const FOREST_ORANGE = ['#d9792f', '#c9692a', '#e08a3c'];
+const FOREST_YELLOW = ['#e3b53e', '#d9a632'];
+// three crown shapes: [dx, dy, radius, second colour?]
+const TREE_SHAPES = [
+  [[-8, -22, 10, 1], [8, -23, 10, 1], [0, -31, 12, 0], [-6, -28, 8, 0]],
+  [[-9, -20, 9, 1], [9, -21, 9, 0], [0, -26, 12, 0], [3, -34, 9, 1]],
+  [[0, -22, 11, 1], [-7, -30, 10, 0], [7, -31, 10, 0], [0, -37, 8, 1]],
+];
 const STEER_PIVOT = 1;                                    // the raft turns about its stern (+1, steered from the front) or bow (-1)
 const FLOW = 1.4;                                         // the flow lines' pace, as a multiple of the rafts' (the current)
 const BOKASHI = 22;                                       // layers in the soft indigo fade along each bank
@@ -113,10 +123,7 @@ export function createRiverArt(canvas) {
 
   function drawRiver(ink, t) {
     const far = bankLine(1), near = bankLine(0);
-    // the far bank's rocky white edge, just outside the water
-    ctx.strokeStyle = C('rock', ink); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-    for (const [lw, a] of [[34, 0.5], [20, 1]]) { ctx.globalAlpha = a; ctx.lineWidth = lw; ctx.beginPath(); trace(far); ctx.stroke(); }
-    ctx.globalAlpha = 1;
+    // (the far bank's pale rocky edge is gone, v1.5.17: Tom read it as a path along the river)
     // the water
     ctx.save();
     ctx.beginPath(); trace(far); for (let i = near.length - 1; i >= 0; i--) ctx.lineTo(near[i][0], near[i][1]); ctx.closePath();
@@ -180,10 +187,10 @@ export function createRiverArt(canvas) {
   const landing = () => riverPoint(1, -0.16, H);
 
   function drawTrees(ink) {
-    // up on the near bank of the stretch above: pines and a hut
-    pine(W * 0.1, H * -0.62, 0.85, ink, AUTUMN[1]); pine(W * 0.16, H * -0.98, 0.7, ink, AUTUMN[0]); hut(W * 0.08, H * -1.12, 0.8, ink);
-    // (v1.5.16, Tom) more huts along the near (left) shore, and autumn trees on both shores; every spot checked clear of the river
-    for (const [u, v, k] of NEAR_HUTS) hut(W * u, H * v, k, ink);
+    // the near (left) shore is one autumn FOREST from the top down to just above the landing (v1.5.17, Tom: no huts; mainly brown,
+    // a few orange, a scattering of yellow). Only the trees in view are drawn.
+    for (const t of forestFor(H)) if (t.y > cam - 90 && t.y < cam + H + 20) tree(t, ink);
+    // autumn trees on the far shore, and a few below the landing (v1.5.16)
     MAPLES.forEach(([u, v, k], i) => maple(W * u, H * v, k, AUTUMN[i % AUTUMN.length], AUTUMN[(i + 3) % AUTUMN.length], ink));
     pine(W * 0.1, H * 0.86, 1.15, ink);
     willow(W * 0.17, H * 0.7, ink);
@@ -198,6 +205,37 @@ export function createRiverArt(canvas) {
     ctx.fillStyle = col || C('pine', ink);
     for (const [dx, dy, w] of [[6, -210, 46], [-26, -170, 40], [24, -150, 38], [-10, -118, 34], [20, -95, 28]]) {
       ctx.beginPath(); ctx.ellipse(x + dx * k, y + dy * k, w * k, 9 * k, -0.08, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  // ---------- the forest on the near shore ----------
+  let forest = null;
+  /** Where the forest's trees stand for this picture height: a jittered grid over the near shore, each tree kept clear of the water
+   *  by more than its crown, from the top of the scroll down to just above the landing hut. Made once per height. */
+  function forestFor(h) {
+    if (forest && forest.h === h) return forest.trees;
+    let seed = 1859; const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const trees = [], step = 30, top = -SCROLL_UP * h - 60, bottom = h * 0.64;
+    for (let y = top; y < bottom; y += step * 0.8) for (let x = -10; x < W + 10; x += step) {
+      const tx = x + (r() - 0.5) * step * 0.9, ty = y + (r() - 0.5) * step * 0.7, k = 0.8 + r() * 0.45;
+      // how far it stands from the near bank (along the river's normal at the nearest point of the middle line)
+      let best = 1e9, bs = 0;
+      for (let s = START_S - 0.8; s <= 1.3; s += 0.01) { const c = centre(s, h), d = Math.hypot(c[0] - tx, c[1] - ty); if (d < best) { best = d; bs = s; } }
+      const c = centre(bs, h), f = frame(bs, h), across = (tx - c[0]) * f.nx + (ty - c[1]) * f.ny, out = -across - halfWidth(bs, h);
+      if (out < 26 * k) continue;                              // on the far side, in the water, or a crown over the water
+      const pick = r(), col = pick < 0.8 ? FOREST_BROWN : pick < 0.93 ? FOREST_ORANGE : FOREST_YELLOW;   // 80% brown, 13% orange, 7% yellow
+      trees.push({ x: tx, y: ty, k, c1: col[Math.floor(r() * col.length)], c2: col[Math.floor(r() * col.length)], v: Math.floor(r() * 3) });
+    }
+    trees.sort((a, b) => a.y - b.y);                           // further up first, so nearer crowns overlap them
+    forest = { h, trees };
+    return trees;
+  }
+  /** One forest tree: a short trunk and a round crown of a few blobs; three slightly different shapes. */
+  function tree(t, ink) {
+    const { x, y, k, c1, c2, v } = t;
+    ctx.strokeStyle = C('trunk', ink); ctx.lineWidth = 3.4 * k; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + k, y - 18 * k); ctx.stroke();
+    for (const [dx, dy, rr, two] of TREE_SHAPES[v]) {
+      ctx.fillStyle = two ? c2 : c1; ctx.beginPath(); ctx.arc(x + dx * k, y + dy * k, rr * k, 0, Math.PI * 2); ctx.fill();
     }
   }
   /** A round autumn tree (a maple, say): a short trunk and a crown of overlapping blobs in two leaf colours. */
