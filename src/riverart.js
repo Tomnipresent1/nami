@@ -34,6 +34,8 @@ const MAPLES = [];
 // three little villages on the far shore, where Tom circled them (centres: u across, v down in picture heights), five huts each
 const VILLAGES = [{ u: 0.88, v: -0.4 }, { u: 0.88, v: -0.2 }, { u: 0.88, v: 0.07 }];
 const HUT_SPOTS = [[0, 0, 1.15], [-48, -38, 0.7], [44, -44, 0.75], [-44, 40, 0.7], [48, 34, 0.72]];   // [dx, dy (units), size]
+const SHOW_VILLAGERS = false;                             // the little people walking about the villages (v1.5.20; off v1.5.21)
+const HUT_WALL = '#3a2a1f';                                // the huts' walls: dark enough to read against the brown ground (v1.5.21; was #6b5a48)
 const PATH_BROWN = '#b98a5c';                             // the paths: a light brown (Tom, v1.5.20; they were pale grey)
 // the near shore's forest (v1.5.17): mainly browns, a few oranges, a scattering of yellows
 const FOREST_BROWN = ['#7a4a2a', '#8b5a34', '#6c4226', '#94623a', '#83522e', '#a06a3c'];
@@ -124,7 +126,7 @@ export function createRiverArt(canvas) {
     ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(x - w / 2, y + 4); ctx.quadraticCurveTo(x, y - w * 0.32, x + w / 2, y + 4); ctx.closePath(); ctx.fill();
   }
   function hut(x, y, k, ink) {
-    ctx.fillStyle = '#6b5a48'; ctx.fillRect(x - 16 * k, y, 32 * k, 12 * k);
+    ctx.fillStyle = HUT_WALL; ctx.fillRect(x - 16 * k, y, 32 * k, 12 * k);
     ctx.fillStyle = C('thatch', ink); ctx.beginPath(); ctx.moveTo(x - 24 * k, y + 2 * k); ctx.lineTo(x - 10 * k, y - 16 * k); ctx.lineTo(x + 12 * k, y - 16 * k); ctx.lineTo(x + 26 * k, y + 2 * k); ctx.closePath(); ctx.fill();
   }
 
@@ -267,13 +269,14 @@ export function createRiverArt(canvas) {
       const cx = W * vg.u, cy = H * vg.v;
       // five huts, the first a little bigger, drawn from the top down so lower roofs overlap higher ones
       HUT_SPOTS.map(([dx, dy, k]) => [cx + dx, cy + dy, k]).sort((a, b) => a[1] - b[1]).forEach(([x, y, k]) => hut(x, y, k, ink));
-      // two villagers strolling slow loops between the huts
-      for (let i = 0; i < 2; i++) {
+      // two villagers strolling slow loops between the huts (off from v1.5.21, Tom: too distracting; SHOW_VILLAGERS)
+      for (let i = 0; SHOW_VILLAGERS && i < 2; i++) {
         const a = t * 0.16 * (i ? -1 : 1) + n * 2.1 + i * 3.1;
         figure(cx + Math.cos(a) * 30, cy + 20 + Math.sin(a) * 14, 0.42, ROBES[(n + i * 2) % ROBES.length], i === 0);
       }
     });
     // and someone walking the path between the lower two villages, there and back
+    if (!SHOW_VILLAGERS) return;
     const u = 0.5 - 0.5 * Math.cos(t * 2 * Math.PI / 40), [wx, wy] = quadAt(pathB(H), 0.1 + 0.8 * u);
     figure(wx, wy, 0.42, '#5b6650', true);
   }
