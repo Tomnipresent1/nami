@@ -34,9 +34,11 @@ const MAPLES = [];
 // three little villages on the far shore, where Tom circled them (centres: u across, v down in picture heights), five huts each
 // (v1.5.22, Tom: the middle one gone; each layout loose and uneven: [dx, dy (units), size, turn (radians)], the first the biggest)
 const VILLAGES = [
-  { u: 0.88, v: -0.4, huts: [[0, 0, 1.15, 0.04], [-54, -26, 0.72, -0.1], [26, -56, 0.66, 0.12], [-28, 46, 0.78, 0.07], [60, 18, 0.7, -0.06], [10, 62, 0.62, 0.15]] },
-  { u: 0.88, v: 0.07, huts: [[8, -6, 1.12, -0.05], [-46, -50, 0.7, 0.1], [54, -34, 0.76, -0.12], [-60, 20, 0.66, 0.06], [30, 48, 0.72, 0.09]] },
+  // (a 5th entry of 1 = a red roof, v1.5.25)
+  { u: 0.88, v: -0.4, huts: [[0, 0, 1.15, 0.04], [-54, -26, 0.72, -0.1, 1], [26, -56, 0.66, 0.12], [-28, 46, 0.78, 0.07], [60, 18, 0.7, -0.06, 1], [10, 62, 0.62, 0.15]] },
+  { u: 0.88, v: 0.07, huts: [[8, -6, 1.12, -0.05, 1], [-46, -50, 0.7, 0.1], [54, -34, 0.76, -0.12], [-60, 20, 0.66, 0.06, 1], [30, 48, 0.72, 0.09]] },
 ];
+const RED_ROOFS = true;                                   // two red roofs in each village, one at the landing (v1.5.25 trial; false = all thatch)
 const HUT_WALL = '#3a2a1f';                                // the huts' walls: dark enough to read against the brown ground (v1.5.21; was #6b5a48)
 // the near shore's forest (v1.5.17): mainly browns, a few oranges, a scattering of yellows
 const FOREST_BROWN = ['#7a4a2a', '#8b5a34', '#6c4226', '#94623a', '#83522e', '#a06a3c'];
@@ -130,10 +132,10 @@ export function createRiverArt(canvas) {
     ctx.fillStyle = dark; ctx.fillRect(x - w * 0.36, y, w * 0.72, w * 0.22);
     ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(x - w / 2, y + 4); ctx.quadraticCurveTo(x, y - w * 0.32, x + w / 2, y + 4); ctx.closePath(); ctx.fill();
   }
-  function hut(x, y, k, ink, rot = 0) {
+  function hut(x, y, k, ink, rot = 0, roof = null) {
     ctx.save(); ctx.translate(x, y); if (rot) ctx.rotate(rot);
     ctx.fillStyle = HUT_WALL; ctx.fillRect(-16 * k, 0, 32 * k, 12 * k);
-    ctx.fillStyle = C('thatch', ink); ctx.beginPath(); ctx.moveTo(-24 * k, 2 * k); ctx.lineTo(-10 * k, -16 * k); ctx.lineTo(12 * k, -16 * k); ctx.lineTo(26 * k, 2 * k); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = roof || C('thatch', ink); ctx.beginPath(); ctx.moveTo(-24 * k, 2 * k); ctx.lineTo(-10 * k, -16 * k); ctx.lineTo(12 * k, -16 * k); ctx.lineTo(26 * k, 2 * k); ctx.closePath(); ctx.fill();
     ctx.restore();
   }
 
@@ -212,7 +214,7 @@ export function createRiverArt(canvas) {
     MAPLES.forEach(([u, v, k], i) => maple(W * u, H * v, k, AUTUMN[i % AUTUMN.length], AUTUMN[(i + 3) % AUTUMN.length], ink));
     // the huts at the landing, yellow thatch: the ferry hut (moved up from the bottom edge, Tom v1.5.13) and, where the tall pine
     // and the willow stood, two more the same size (v1.5.23, Tom, research/delivery 28)
-    for (const [x, y, k] of landingHuts(H)) hut(x, y, k, ink);
+    for (const [x, y, k, rot, red] of landingHuts(H)) hut(x, y, k, ink, rot, red ? BOX_COLOURS[0] : null);
     // (v1.5.20: the red pine by the water, bottom right, removed: Tom)
   }
 
@@ -257,10 +259,11 @@ export function createRiverArt(canvas) {
   // ---------- the villages on the far shore (v1.5.20, Tom's notes, research/delivery 23; v1.5.22: two villages, no paths, no
   // people, each its own loose, organic layout) ----------
   /** Where a village's huts stand (world x, y, size, a slight turn), from the top down so lower roofs overlap higher ones. */
-  const landingHuts = (h) => [[W * 0.15, h * 0.66, 2.2], [W * 0.27, h * 0.75, 2.2], [W * 0.11, h * 0.88, 2.2]];
-  const villageHuts = (h) => VILLAGES.flatMap((vg) => vg.huts.map(([dx, dy, k, rot]) => [W * vg.u + dx, h * vg.v + dy, k, rot])).sort((a, b) => a[1] - b[1]);
+  // [x, y, size, turn, red roof?]
+  const landingHuts = (h) => [[W * 0.15, h * 0.66, 2.2, 0, RED_ROOFS], [W * 0.27, h * 0.75, 2.2, 0, false], [W * 0.11, h * 0.88, 2.2, 0, false]];
+  const villageHuts = (h) => VILLAGES.flatMap((vg) => vg.huts.map(([dx, dy, k, rot, red]) => [W * vg.u + dx, h * vg.v + dy, k, rot, RED_ROOFS && !!red])).sort((a, b) => a[1] - b[1]);
   function drawVillages(ink) {
-    for (const [x, y, k, rot] of villageHuts(H)) hut(x, y, k, ink, rot);
+    for (const [x, y, k, rot, red] of villageHuts(H)) hut(x, y, k, ink, rot, red ? BOX_COLOURS[0] : null);
   }
   /** A round autumn tree (a maple, say): a short trunk and a crown of overlapping blobs in two leaf colours. */
   function maple(x, y, k, c1, c2, ink) {
