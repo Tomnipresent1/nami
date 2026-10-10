@@ -25,6 +25,7 @@ const LAYERS = {
   trunk: ['#d6ccbc', '#6b5640', 20, 70],
 };
 const STEER_PIVOT = 1;                                    // the raft turns about its stern (+1, steered from the front) or bow (-1)
+const FLOW = 1.4;                                         // the flow lines' pace, as a multiple of the rafts' (the current)
 const BOKASHI = 22;                                       // layers in the soft indigo fade along each bank
 const SKIN = '#e6c8a2', YOU = '#a8452f', BOX = '#ead7a8';
 const ROBES = ['#2f3d5c', '#4a5468', '#3a3f4a', '#5b6650'];
@@ -125,7 +126,8 @@ export function createRiverArt(canvas) {
     // little pale streaks drifting with the current
     ctx.strokeStyle = '#eef1ee'; ctx.lineWidth = 1.4;
     for (const r of RIPPLES) {
-      const span = 1.3 - START_S, s = ((r.s * span + t / RTUNE.journeySecs * 0.9) % span) + START_S - 0.15;
+      // (they run a little faster than the rafts, v1.5.13: at the rafts' own pace the water looked still)
+      const span = 1.3 - START_S, s = ((r.s * span + t / RTUNE.journeySecs * FLOW) % span) + START_S - 0.15;
       const a = riverPoint(s, r.d, H), b = riverPoint(s + r.len, r.d, H);
       ctx.globalAlpha = 0.35 * clamp(Math.min(s - START_S + 0.15, 1.15 - s) * 6, 0, 1);
       ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
@@ -165,9 +167,6 @@ export function createRiverArt(canvas) {
     ctx.fillRect(-10, -14, Math.hypot(ex - bx, ey - by) + 12, 28);
     ctx.strokeStyle = '#4e3b29'; ctx.lineWidth = 1; for (let i = 0; i < 8; i++) { ctx.beginPath(); ctx.moveTo(-10 + i * 9, -14); ctx.lineTo(-10 + i * 9, 14); ctx.stroke(); }
     ctx.restore();
-    // the ferry hut's yellow roof at the bottom, as in the print
-    ctx.fillStyle = C('thatch', ink);
-    ctx.beginPath(); ctx.moveTo(W * 0.38, H + 4); ctx.lineTo(W * 0.5, H * 0.95); ctx.lineTo(W * 0.62, H * 0.95); ctx.lineTo(W * 0.74, H + 4); ctx.closePath(); ctx.fill();
   }
   const landing = () => riverPoint(1, -0.16, H);
 
@@ -175,7 +174,10 @@ export function createRiverArt(canvas) {
     // up on the near bank of the stretch above: pines and a hut
     pine(W * 0.1, H * -0.62, 0.85, ink); pine(W * 0.16, H * -0.98, 0.7, ink); hut(W * 0.08, H * -1.12, 0.8, ink);
     pine(W * 0.1, H * 0.86, 1.15, ink);
-    willow(W * 0.27, H * 0.8, ink);
+    willow(W * 0.17, H * 0.7, ink);
+    // the ferry hut, yellow thatch, by the landing: moved up from the bottom edge (Tom v1.5.13, research/delivery 18) so the
+    // destination comes into view early on the way down
+    hut(W * 0.27, H * 0.75, 2.2, ink);
     pine(W * 0.93, H * 0.99, 0.9, ink);
   }
   function pine(x, y, k, ink) {
