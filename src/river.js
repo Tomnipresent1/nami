@@ -48,14 +48,16 @@ export const RTUNE = {
   // (v1.5.4, Tom: "far too slippy... you can't rush it, you have to go with the river"; not a race: everyone at one languid pace)
   journeySecs: 80,          // top of the picture to the landing: the river's pace, the same for every raft, you included
   others: 4,                // other timber rafts on the river (drifting at the same pace, holding their lines)
-  acrossSpeed: 0.2,         // river widths per second at most, poling across (keys or finger): a heavy raft in water
-  pickUp: 1.5,              // how quickly it gathers way across (1/s): slow to get going
+  acrossSpeed: 0.11,        // river widths per second at most, poling across (keys or finger): a heavy raft, a pole on the riverbed
+  pickUp: 0.9,              // how quickly it gathers way across (1/s): slow to get going
   settle: 2.8,              // ... and how quickly the water stops it when you stop poling (1/s): no sliding on
   fingerFollow: 14, aimLead: 0.08,   // the finger is a trackpad, like the bridge's
   // steered from the back (v1.5.5, Tom: it moved sideways as a block): poling swings the STERN out at once and the raft turns
   // about its bow, then it gathers way across in the direction it now points; let go and it straightens
-  maxYaw: 0.35,             // the most it turns from the line of the river (radians, about 20 degrees)
-  yawRate: 3.5,             // how quickly the stern swings round (1/s)
+  // (v1.5.6, Tom: v1.5.5 felt like a rally car drifting: slowed right down, and it only moves across as far as it points)
+  maxYaw: 0.22,             // the most it turns from the line of the river (radians, about 13 degrees)
+  yawRate: 1.1,             // how quickly the stern swings round as he pushes (1/s): about 1.5 s to come round
+  yawBack: 1.6,             // ... and how quickly it straightens once he stops
   bodyS: 0.05, bodyD: 0.16, // how close counts as bumping another raft (along, across)
   bumpStop: 1.1,
   reedSlow: 0.5,
@@ -229,7 +231,10 @@ export class River {
       if (landing > 0) want = want * (1 - 0.6 * landing) - 0.5 * landing;
       // the stern swings first (yaw, + = bow toward the far bank), then the raft gathers way across
       const yawTo = clamp(want / T.acrossSpeed, -1, 1) * T.maxYaw;
-      p.yaw += (yawTo - p.yaw) * Math.min(1, dt * T.yawRate);
+      p.yaw += (yawTo - p.yaw) * Math.min(1, dt * (Math.abs(yawTo) > Math.abs(p.yaw) ? T.yawRate : T.yawBack));
+      // it moves across only as much as it points (no sliding sideways ahead of the turn); the shore's pull at the landing still adds
+      const landingPull = want - clamp(want, -T.acrossSpeed, T.acrossSpeed);
+      want = (p.yaw / T.maxYaw) * T.acrossSpeed + landingPull;
       const gathering = Math.abs(want) > Math.abs(p.vd) && want * p.vd >= 0;
       p.vd += (want - p.vd) * Math.min(1, dt * (gathering ? T.pickUp : T.settle));
       p.d = clamp(p.d + p.vd * dt, 0, 1);
