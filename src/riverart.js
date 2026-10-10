@@ -13,12 +13,12 @@ import { pixelRatio } from './quality.js';
 const LAYERS = {
   sky: ['#e4dfcc', '#26314c', 35, 100],
   woods: ['#cfcfc2', '#28332f', 25, 90],
-  field: ['#dedcc2', '#6f8c5c', 10, 60],
+  field: ['#dedcc2', '#77492a', 10, 60],     // (v1.5.12, Tom's mockup, research/delivery 17: warm brown #6d4325 once the paper grain is over it; was green)
   rock: ['#ecebe2', '#d5d7d0', 0, 40],
   water: ['#e8e4d4', '#c2ced8', 0, 40],
   indigo: ['#cfd0d2', '#1d3260', 15, 80],
   ground: ['#d8d5c8', '#8c9296', 10, 60],
-  grass: ['#d9dcc6', '#5a8850', 20, 70],
+  grass: ['#d9dcc6', '#77492a', 20, 70],     // (the same brown on the near bank, was green #5a8850)
   log: ['#dcc6aa', '#a6673a', 10, 50],
   thatch: ['#eee2b6', '#e3c048', 30, 80],
   pine: ['#d4d8c6', '#3f6a48', 25, 75],
