@@ -22,8 +22,10 @@ export const heightFor = (aspect) => Math.round(clamp(RIVER_W * aspect, MIN_H, M
 // winding down from the top right. The view follows the raft down and settles on the print at the landing.
 // (the print's first point moved in from the very edge, 0.02 -> 0.11: scrolling, you pass through there and were half off screen)
 // (v1.5.9, Tom: wider and more centred: the whole course pulled in toward the middle; the print's lower half is as it was)
-const UP = [[0.6, -1.74], [0.6, -1.56], [0.59, -1.36], [0.57, -1.18], [0.53, -1.0], [0.46, -0.82], [0.38, -0.64], [0.31, -0.45], [0.26, -0.25]];
-const CL = [...UP, [0.23, -0.06], [0.23, 0.10], [0.27, 0.27], [0.36, 0.43], [0.5, 0.55], [0.63, 0.66], [0.70, 0.81], [0.74, 0.97], [0.78, 1.12], [0.84, 1.27]];
+// (v1.5.14, Tom: further toward the centre and a harder curve: down the right of centre, a tight swing left, then back right to
+// the landing, which stays where it was)
+const UP = [[0.63, -1.74], [0.63, -1.56], [0.63, -1.36], [0.63, -1.18], [0.64, -1.0], [0.65, -0.82], [0.64, -0.64], [0.6, -0.45], [0.43, -0.25]];
+const CL = [...UP, [0.31, -0.06], [0.29, 0.10], [0.32, 0.27], [0.5, 0.41], [0.65, 0.53], [0.7, 0.67], [0.70, 0.81], [0.72, 0.97], [0.74, 1.12], [0.76, 1.27]];
 const S_PER_SEG = 0.2;              // s from one point to the next; s = 0 at the print's CL[1], s = 1 (the landing) at its CL[6]
 /** Where you set off: near the top of the upper screen (s < 0 is the stretch above the print). */
 export const START_S = -0.5;   // (Tom: trip shorter: v1.5.10 a quarter, v1.5.11 to ~70 s like the other prints)
@@ -58,7 +60,7 @@ export const RTUNE = {
   // (v1.5.4, Tom: "far too slippy... you can't rush it, you have to go with the river"; not a race: everyone at one languid pace)
   journeySecs: 43,          // s per second = 1 / this: the river's pace, the same for every raft, you included (whole trip ~70 s)
   others: 4,                // other timber rafts on the river (drifting at the same pace, holding their lines)
-  acrossSpeed: 0.11,        // river widths per second at most, poling across (keys or finger): a heavy raft, a pole on the riverbed
+  acrossSpeed: 0.085,       // river widths per second at most (v1.5.14: a little slower again, was 0.11), poling across (keys or finger): a heavy raft, a pole on the riverbed
   pickUp: 0.9,              // how quickly it gathers way across (1/s): slow to get going
   settle: 2.8,              // ... and how quickly the water stops it when you stop poling (1/s): no sliding on
   fingerFollow: 14, aimLead: 0.08,   // the finger is a trackpad, like the bridge's
@@ -66,7 +68,7 @@ export const RTUNE = {
   // about its bow, then it gathers way across in the direction it now points; let go and it straightens
   // (v1.5.6, Tom: v1.5.5 felt like a rally car drifting: slowed right down, and it only moves across as far as it points)
   maxYaw: 0.22,             // the most it turns from the line of the river (radians, about 13 degrees)
-  yawRate: 1.1,             // how quickly the stern swings round as he pushes (1/s): about 1.5 s to come round
+  yawRate: 0.85,            // how quickly it swings round as he pushes (1/s): about 2 s to come round (v1.5.14, was 1.1)
   yawBack: 1.6,             // ... and how quickly it straightens once he stops
   bodyS: 0.05, bodyD: 0.16, // how close counts as bumping another raft (along, across)
   bumpStop: 1.1,
@@ -333,7 +335,7 @@ export class River {
     }
     if (d < 0) return;
     const T = RTUNE;
-    this.others.push({ s, d, d0: d, dTarget: d, phase: this.rand() * 6.28,
+    this.others.push({ s, d, d0: d, dTarget: d, phase: this.rand() * 6.28, wood: Math.floor(this.rand() * 6),
       pole: this.rand() * 4, stopT: 0, passed: s < this.player.s, len: 0.85 + this.rand() * 0.35 });
   }
 }

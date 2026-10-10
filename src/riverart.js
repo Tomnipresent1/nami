@@ -27,6 +27,8 @@ const LAYERS = {
 const STEER_PIVOT = 1;                                    // the raft turns about its stern (+1, steered from the front) or bow (-1)
 const FLOW = 1.4;                                         // the flow lines' pace, as a multiple of the rafts' (the current)
 const BOKASHI = 22;                                       // layers in the soft indigo fade along each bank
+// the other rafts' timber, each its own (v1.5.14, Tom: browns, ochres, khakis); yours keeps the 'log' colour
+const WOODS = ['#9a6136', '#8a6a3c', '#b08a4a', '#9c7b45', '#7d5a34', '#a8915c'];
 const SKIN = '#e6c8a2', YOU = '#a8452f', BOX = '#ead7a8';
 const ROBES = ['#2f3d5c', '#4a5468', '#3a3f4a', '#5b6650'];
 const PORTERS = [{ robe: '#3d6b5a', hat: true }, { robe: '#2f3d5c', hat: false }, { robe: '#6b5a48', hat: true }];
@@ -211,7 +213,7 @@ export function createRiverArt(canvas) {
   /** A timber raft lying along the stream at s, d, poled from the back. yaw (radians, + = bow toward the far bank): it turns about
    *  its STERN, so the bow swings round toward where it is going: steered from the front (v1.5.7, Tom's trial; v1.5.5-v1.5.6
    *  turned about the bow, steered from the back, which felt off). PIVOT: +1 = turn about the stern, -1 = about the bow. */
-  function raft(s, d, len, pole, robe, boxes = 0, you = false, yaw = 0) {
+  function raft(s, d, len, pole, robe, boxes = 0, you = false, yaw = 0, wood = null) {
     const [x0, y0] = riverPoint(s, d, H), f = frame(s, H), k = scaleAt(s);
     const L = 120 * k * len, Wd = 15 * k;
     const turn = (f.nx * -f.ty + f.ny * f.tx) >= 0 ? 1 : -1, rot = Math.atan2(f.ty, f.tx) + turn * yaw, tx = Math.cos(rot), ty = Math.sin(rot);
@@ -221,7 +223,7 @@ export function createRiverArt(canvas) {
     ctx.strokeStyle = '#eef1ee'; ctx.globalAlpha = 0.5; ctx.lineWidth = 1.3;
     ctx.beginPath(); ctx.moveTo(-L / 2 - 4, -Wd / 2 - 2); ctx.lineTo(-L / 2 - 30 * k, -Wd / 2 - 7 * k); ctx.moveTo(-L / 2 - 4, Wd / 2 + 2); ctx.lineTo(-L / 2 - 30 * k, Wd / 2 + 7 * k); ctx.stroke();
     ctx.globalAlpha = 1;
-    ctx.fillStyle = C('log', 100); ctx.fillRect(-L / 2, -Wd / 2, L, Wd);
+    ctx.fillStyle = wood || C('log', 100); ctx.fillRect(-L / 2, -Wd / 2, L, Wd);
     ctx.strokeStyle = '#6e4224'; ctx.lineWidth = 0.9;
     for (let i = 1; i < 4; i++) { ctx.beginPath(); ctx.moveTo(-L / 2, -Wd / 2 + (Wd * i) / 4); ctx.lineTo(L / 2, -Wd / 2 + (Wd * i) / 4); ctx.stroke(); }
     ctx.strokeRect(-L / 2, -Wd / 2, L, Wd);
@@ -347,7 +349,7 @@ export function createRiverArt(canvas) {
     drawNearBank(ink);
     drawReeds(ink);
     // everything on the water, furthest (highest up the picture) first
-    const things = sim.others.map((o) => ({ s: o.s, f: () => raft(o.s, o.d, o.len, o.pole, ROBES[Math.floor(o.phase) % ROBES.length]) }));
+    const things = sim.others.map((o) => ({ s: o.s, f: () => raft(o.s, o.d, o.len, o.pole, ROBES[Math.floor(o.phase) % ROBES.length], 0, false, 0, WOODS[(o.wood || 0) % WOODS.length]) }));
     if (SHOW_FERRY) things.push({ s: FERRY_S, f: () => ferry(sim.ferry) });
     if (sim.state !== 'title') things.push({ s: sim.player.s, f: () => raft(sim.player.s, sim.player.d, 1.05, sim.player.pole, YOU, sim.boxes - (sim.lift ? 1 : 0), true, sim.player.yaw) });
     things.sort((a, b) => a.s - b.s).forEach((th) => th.f());
