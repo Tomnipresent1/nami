@@ -12,18 +12,25 @@ import { pixelRatio } from './quality.js';
 // [colour on bare paper, final colour, ink where it starts, ink where it is done]
 const LAYERS = {
   sky: ['#e4dfcc', '#26314c', 35, 100],
-  woods: ['#cfcfc2', '#28332f', 25, 90],
+  woods: ['#cfcfc2', '#353f3c', 25, 90],     // (v1.5.16, Tom's palette, research/delivery 20: from his dark grey-green)
   field: ['#dedcc2', '#77492a', 10, 60],     // (v1.5.12, Tom's mockup, research/delivery 17: warm brown #6d4325 once the paper grain is over it; was green)
   rock: ['#ecebe2', '#d5d7d0', 0, 40],
-  water: ['#e8e4d4', '#c2ced8', 0, 40],
-  indigo: ['#cfd0d2', '#1d3260', 15, 80],
-  ground: ['#d8d5c8', '#8c9296', 10, 60],
+  water: ['#e8e4d4', '#a3c6b7', 0, 40],     // the river: Tom's sage (#97b8aa on screen, under the grain), not blue
+  indigo: ['#cfd0d2', '#495450', 15, 80],   // ... shading to his dark grey-green along the banks (was indigo)
+  ground: ['#d8d5c8', '#a5512a', 10, 60],   // the near bank's path and lower ground: his rust (was grey-blue)
   grass: ['#d9dcc6', '#77492a', 20, 70],     // (the same brown on the near bank, was green #5a8850)
   log: ['#dcc6aa', '#a6673a', 10, 50],
   thatch: ['#eee2b6', '#e3c048', 30, 80],
-  pine: ['#d4d8c6', '#3f6a48', 25, 75],
+  pine: ['#d4d8c6', '#c4512b', 25, 75],     // autumn: no green trees (v1.5.16)
   trunk: ['#d6ccbc', '#6b5640', 20, 70],
 };
+// autumn foliage (v1.5.16, Tom: "no green, just orange and red")
+const AUTUMN = ['#d9792f', '#c4452a', '#e08a3c', '#b8392a', '#d26a2e', '#cf5a2a'];
+const REED = '#8a877a';
+// [u across, v down (picture heights; < 0 = the stretch above the print), size]: placed clear of the river at every screen height
+const NEAR_HUTS = [[0.08, -0.4, 0.9], [0.07, -0.12, 0.8], [0.06, 0.2, 0.75], [0.1, 0.45, 0.9], [0.2, 1.05, 1], [0.36, 1.22, 0.9]];
+const MAPLES = [[0.2, -0.6, 1], [0.15, -0.25, 0.8], [0.05, 0.02, 0.9], [0.06, 0.33, 0.8], [0.05, 0.62, 1.1], [0.42, 1.14, 1], [0.08, 1.18, 1.2],
+  [0.3, 1.35, 1], [0.9, -0.42, 1], [0.86, -0.95, 0.9], [0.8, -0.3, 0.8], [0.95, -0.15, 1], [0.96, 0.5, 0.8], [0.9, 0.15, 1]];
 const STEER_PIVOT = 1;                                    // the raft turns about its stern (+1, steered from the front) or bow (-1)
 const FLOW = 1.4;                                         // the flow lines' pace, as a multiple of the rafts' (the current)
 const BOKASHI = 22;                                       // layers in the soft indigo fade along each bank
@@ -139,7 +146,7 @@ export function createRiverArt(canvas) {
   }
 
   function drawReeds(ink) {
-    ctx.strokeStyle = C('pine', ink); ctx.lineWidth = 1.2;
+    ctx.strokeStyle = REED; ctx.lineWidth = 1.2;
     for (const r of REEDS) {
       for (let k = 0; k < 40; k++) {
         const s = r.s + ((k * 0.618) % 1 - 0.5) * 2 * REED_S, d = r.d + ((k * 0.382 * 3) % 1 - 0.5) * 1.6 * REED_D;
@@ -174,7 +181,10 @@ export function createRiverArt(canvas) {
 
   function drawTrees(ink) {
     // up on the near bank of the stretch above: pines and a hut
-    pine(W * 0.1, H * -0.62, 0.85, ink); pine(W * 0.16, H * -0.98, 0.7, ink); hut(W * 0.08, H * -1.12, 0.8, ink);
+    pine(W * 0.1, H * -0.62, 0.85, ink, AUTUMN[1]); pine(W * 0.16, H * -0.98, 0.7, ink, AUTUMN[0]); hut(W * 0.08, H * -1.12, 0.8, ink);
+    // (v1.5.16, Tom) more huts along the near (left) shore, and autumn trees on both shores; every spot checked clear of the river
+    for (const [u, v, k] of NEAR_HUTS) hut(W * u, H * v, k, ink);
+    MAPLES.forEach(([u, v, k], i) => maple(W * u, H * v, k, AUTUMN[i % AUTUMN.length], AUTUMN[(i + 3) % AUTUMN.length], ink));
     pine(W * 0.1, H * 0.86, 1.15, ink);
     willow(W * 0.17, H * 0.7, ink);
     // the ferry hut, yellow thatch, by the landing: moved up from the bottom edge (Tom v1.5.13, research/delivery 18) so the
@@ -182,18 +192,26 @@ export function createRiverArt(canvas) {
     hut(W * 0.27, H * 0.75, 2.2, ink);
     pine(W * 0.93, H * 0.99, 0.9, ink);
   }
-  function pine(x, y, k, ink) {
+  function pine(x, y, k, ink, col = null) {
     ctx.strokeStyle = C('trunk', ink); ctx.lineWidth = 5 * k; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(x, y); ctx.bezierCurveTo(x + 18 * k, y - 80 * k, x - 20 * k, y - 140 * k, x + 6 * k, y - 210 * k); ctx.stroke();
-    ctx.fillStyle = C('pine', ink);
+    ctx.fillStyle = col || C('pine', ink);
     for (const [dx, dy, w] of [[6, -210, 46], [-26, -170, 40], [24, -150, 38], [-10, -118, 34], [20, -95, 28]]) {
       ctx.beginPath(); ctx.ellipse(x + dx * k, y + dy * k, w * k, 9 * k, -0.08, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  /** A round autumn tree (a maple, say): a short trunk and a crown of overlapping blobs in two leaf colours. */
+  function maple(x, y, k, c1, c2, ink) {
+    ctx.strokeStyle = C('trunk', ink); ctx.lineWidth = 4 * k; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 2 * k, y - 34 * k); ctx.stroke();
+    for (const [dx, dy, r, c] of [[-12, -40, 15, c2], [12, -42, 14, c2], [0, -54, 17, c1], [-14, -56, 12, c1], [14, -58, 12, c1], [2, -40, 13, c1]]) {
+      ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x + dx * k, y + dy * k, r * k, 0, Math.PI * 2); ctx.fill();
     }
   }
   function willow(x, y, ink) {
     ctx.strokeStyle = C('trunk', ink); ctx.lineWidth = 6;
     ctx.beginPath(); ctx.moveTo(x - 40, y); ctx.quadraticCurveTo(x - 10, y - 40, x + 20, y - 90); ctx.stroke();
-    ctx.strokeStyle = C('pine', ink); ctx.lineWidth = 1;
+    ctx.strokeStyle = AUTUMN[2]; ctx.lineWidth = 1;
     for (let i = 0; i < 26; i++) {
       const a = (i / 25) * Math.PI, sx = x + 20 + Math.cos(a) * 46, sy = y - 90 - Math.sin(a) * 20;
       ctx.beginPath(); ctx.moveTo(sx, sy); ctx.quadraticCurveTo(sx + 4, sy + 40, sx + 2, sy + 70 + (i % 4) * 8); ctx.stroke();
