@@ -43,6 +43,7 @@ const TREE_SHAPES = [
 ];
 const STEER_PIVOT = 1;                                    // the raft turns about its stern (+1, steered from the front) or bow (-1)
 const FLOW = 1.4;                                         // the flow lines' pace, as a multiple of the rafts' (the current)
+const WATER_INSIDE_OUT = true;                            // the river dark mid-stream, fading lighter to the banks (v1.5.18)
 const BOKASHI = 22;                                       // layers in the soft indigo fade along each bank
 // the other rafts' timber, each its own (v1.5.14, Tom: browns, ochres, khakis); yours keeps the 'log' colour
 const WOODS = ['#9a6136', '#8a6a3c', '#b08a4a', '#9c7b45', '#7d5a34', '#a8915c'];
@@ -127,12 +128,13 @@ export function createRiverArt(canvas) {
     // the water
     ctx.save();
     ctx.beginPath(); trace(far); for (let i = near.length - 1; i >= 0; i--) ctx.lineTo(near[i][0], near[i][1]); ctx.closePath();
-    ctx.fillStyle = C('water', ink); ctx.fill();
+    // INSIDE OUT (v1.5.18, Tom: dark in the middle, lighter at the banks: the same two colours, swapped; false = the old way)
+    const mid = WATER_INSIDE_OUT ? C('indigo', ink) : C('water', ink), edge = WATER_INSIDE_OUT ? C('water', ink) : C('indigo', ink);
+    ctx.fillStyle = mid; ctx.fill();
     ctx.clip();
     // deep indigo shading along both banks (the print's bokashi), fading smoothly toward mid-stream. (v1.5.4, Tom: it looked
     // banded: four thick stripes stacked up. Now many thin layers, each a touch wider and fainter, so the steps can't be seen.)
-    const indigo = C('indigo', ink);
-    ctx.strokeStyle = indigo;
+    ctx.strokeStyle = edge;
     for (const [pts, k] of [[far, 1], [near, 0.85]]) for (let i = 0; i < BOKASHI; i++) {
       const u = i / (BOKASHI - 1);
       ctx.globalAlpha = 0.055 * k; ctx.lineWidth = 12 + 170 * u * u; ctx.beginPath(); trace(pts); ctx.stroke();
