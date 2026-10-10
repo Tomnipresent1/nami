@@ -45,11 +45,13 @@ export function riverPoint(s, d, H) {
 export const scaleAt = (s) => 0.6 + 0.4 * clamp(s, 0, 1.2);
 
 export const RTUNE = {
-  journeySecs: 58,          // top of the picture to the landing, in mid-stream, unhindered
-  others: 4,                // other timber rafts on the river
-  otherPace: [0.62, 0.78],  // ... drifting this fraction of your pace, so you come up behind them and go round
-  acrossSpeed: 0.9,         // river widths per second with the arrow keys
-  fingerFollow: 14, aimLead: 0.08, fingerSpeed: 1.6,   // the finger is a trackpad, like the bridge's
+  // (v1.5.4, Tom: "far too slippy... you can't rush it, you have to go with the river"; not a race: everyone at one languid pace)
+  journeySecs: 80,          // top of the picture to the landing: the river's pace, the same for every raft, you included
+  others: 4,                // other timber rafts on the river (drifting at the same pace, holding their lines)
+  acrossSpeed: 0.2,         // river widths per second at most, poling across (keys or finger): a heavy raft in water
+  pickUp: 1.5,              // how quickly it gathers way across (1/s): slow to get going
+  settle: 2.8,              // ... and how quickly the water stops it when you stop poling (1/s): no sliding on
+  fingerFollow: 14, aimLead: 0.08,   // the finger is a trackpad, like the bridge's
   bodyS: 0.05, bodyD: 0.16, // how close counts as bumping another raft (along, across)
   bumpStop: 1.1,
   reedSlow: 0.5,
@@ -205,14 +207,13 @@ export class River {
       const f = frame(p.s, H), hw = halfWidth(p.s, H);
       // the finger is a trackpad: you move with the finger's movement, measured ACROSS the river where you are (so when the river
       // runs sideways in the middle of the picture, sliding up and down poles you across)
-      let want, ease = 10;
+      let want;
       if (inp.fingerX != null && inp.fingerY != null) {
         if (!this.drag || this.drag.id !== inp.touchId) this.drag = { x: inp.fingerX, y: inp.fingerY, aim: p.d, id: inp.touchId };
         this.drag.aim += ((inp.fingerX - this.drag.x) * f.nx + (inp.fingerY - this.drag.y) * f.ny) / (2 * hw);
         this.drag.x = inp.fingerX; this.drag.y = inp.fingerY;
         this.drag.aim = clamp(clamp(this.drag.aim, 0, 1), p.d - T.aimLead, p.d + T.aimLead);
-        want = clamp((this.drag.aim - p.d) * T.fingerFollow, -1, 1) * T.fingerSpeed;
-        ease = 25;
+        want = clamp((this.drag.aim - p.d) * T.fingerFollow, -1, 1) * T.acrossSpeed;
       } else {
         this.drag = null;
         const kx = clamp(inp.steer || 0, -1, 1), ky = -clamp(inp.vert || 0, -1, 1);
@@ -222,13 +223,14 @@ export class River {
       // the last stretch: the current eases and draws you in to the landing on the near bank
       const landing = smooth((p.s - T.landingFrom) / (1 - T.landingFrom));
       if (landing > 0) want = want * (1 - 0.6 * landing) - 0.5 * landing;
-      p.vd += (want - p.vd) * Math.min(1, dt * ease);
+      const gathering = Math.abs(want) > Math.abs(p.vd) && want * p.vd >= 0;
+      p.vd += (want - p.vd) * Math.min(1, dt * (gathering ? T.pickUp : T.settle));
       p.d = clamp(p.d + p.vd * dt, 0, 1);
       if (p.d === 0 || p.d === 1) p.vd = 0;
       p.pole += dt * (0.8 + Math.abs(p.vd) * 2);
 
-      // the current: a little quicker mid-stream, slower by the banks and in the reeds; it eases at the landing
-      let pace = base * (0.85 + 0.3 * (1 - (2 * p.d - 1) ** 2));
+      // the current: one steady pace for everyone (v1.5.4), slower in the reeds; it eases at the landing
+      let pace = base;
       let inReed = -1;
       REEDS.forEach((r, i) => { if (Math.abs(p.s - r.s) < REED_S && Math.abs(p.d - r.d) < REED_D) inReed = i; });
       if (inReed >= 0) { pace *= T.reedSlow; if (inReed !== p.inReed) { this.stats.reeds++; if (scoring) this.say('reed'); } }
@@ -262,13 +264,14 @@ export class River {
       if (scoring) this.say('complete');
     }
 
-    // ---- the other rafts drift down at their own slower pace, keeping to their line; you go round them ----
+    // ---- the other rafts drift down at the river's pace, holding their line; any change of line is a slow glide (Tom v1.5.4:
+    // they slipped one way or the other) ----
     for (const o of this.others) {
       if (o.stopT > 0) o.stopT -= dt;
-      else o.s += base * o.pace * dt;
+      else o.s += base * dt;
       if (o.s > 0.85) o.dTarget = Math.max(o.dTarget, 0.6);            // they keep off the landing and carry on downstream
-      o.d0 += (o.dTarget - o.d0) * Math.min(1, dt * 0.8);
-      o.d = clamp(o.d0 + 0.03 * Math.sin(this.t * 0.4 + o.phase), 0.05, 0.95);
+      o.d0 += clamp(o.dTarget - o.d0, -0.05 * dt, 0.05 * dt);          // at most 5% of the river's width a second
+      o.d = clamp(o.d0, 0.05, 0.95);
       o.pole += dt;
       if (!playing) continue;
       const ahead = o.s - p.s;
@@ -308,7 +311,7 @@ export class River {
     }
     if (d < 0) return;
     const T = RTUNE;
-    this.others.push({ s, d, d0: d, dTarget: d, pace: T.otherPace[0] + this.rand() * (T.otherPace[1] - T.otherPace[0]), phase: this.rand() * 6.28,
+    this.others.push({ s, d, d0: d, dTarget: d, phase: this.rand() * 6.28,
       pole: this.rand() * 4, stopT: 0, passed: s < this.player.s, len: 0.85 + this.rand() * 0.35 });
   }
 }

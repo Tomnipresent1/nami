@@ -25,6 +25,7 @@ const LAYERS = {
   trunk: ['#d6ccbc', '#6b5640', 20, 70],
 };
 const START_INK = 30;
+const BOKASHI = 22;                                       // layers in the soft indigo fade along each bank
 const SKIN = '#e6c8a2', YOU = '#a8452f', BOX = '#ead7a8';
 const ROBES = ['#2f3d5c', '#4a5468', '#3a3f4a', '#5b6650'];
 const PORTERS = [{ robe: '#3d6b5a', hat: true }, { robe: '#2f3d5c', hat: false }, { robe: '#6b5a48', hat: true }];
@@ -105,15 +106,16 @@ export function createRiverArt(canvas) {
     ctx.beginPath(); trace(far); for (let i = near.length - 1; i >= 0; i--) ctx.lineTo(near[i][0], near[i][1]); ctx.closePath();
     ctx.fillStyle = C('water', ink); ctx.fill();
     ctx.clip();
-    // deep indigo shading along both banks (the print's bokashi), softest toward mid-stream
+    // deep indigo shading along both banks (the print's bokashi), fading smoothly toward mid-stream. (v1.5.4, Tom: it looked
+    // banded: four thick stripes stacked up. Now many thin layers, each a touch wider and fainter, so the steps can't be seen.)
     const indigo = C('indigo', ink);
     ctx.strokeStyle = indigo;
-    for (const [pts, k] of [[far, 1], [near, 0.85]]) for (const [lw, a] of [[150, 0.14], [100, 0.18], [60, 0.25], [26, 0.35]]) {
-      ctx.globalAlpha = a * k; ctx.lineWidth = lw; ctx.beginPath(); trace(pts); ctx.stroke();
+    for (const [pts, k] of [[far, 1], [near, 0.85]]) for (let i = 0; i < BOKASHI; i++) {
+      const u = i / (BOKASHI - 1);
+      ctx.globalAlpha = 0.055 * k; ctx.lineWidth = 12 + 170 * u * u; ctx.beginPath(); trace(pts); ctx.stroke();
     }
-    // and a dark band of current running down the middle
-    ctx.globalAlpha = 0.16; ctx.lineWidth = 46; ctx.beginPath(); trace(bankLine(0.6)); ctx.stroke();
-    ctx.globalAlpha = 0.12; ctx.lineWidth = 22; ctx.beginPath(); trace(bankLine(0.6)); ctx.stroke();
+    // and a soft darker drift of current down the middle
+    for (let i = 0; i < 8; i++) { ctx.globalAlpha = 0.022; ctx.lineWidth = 10 + i * 9; ctx.beginPath(); trace(bankLine(0.6)); ctx.stroke(); }
     // little pale streaks drifting with the current
     ctx.strokeStyle = '#eef1ee'; ctx.lineWidth = 1.4;
     for (const r of RIPPLES) {
